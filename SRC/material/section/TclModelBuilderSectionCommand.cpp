@@ -50,6 +50,7 @@
 #include <ParallelSection.h>
 //#include <FiberSection.h>
 #include <FiberSection2d.h>
+#include <NLFiberSection2d.h>
 #include <NDFiberSection2d.h>
 #include <NDFiberSection3d.h>
 #include <NDFiberSectionWarping2d.h>
@@ -1491,7 +1492,8 @@ TclModelBuilderSectionCommand (ClientData clientData, Tcl_Interp *interp, int ar
     else if (strcmp(argv[1],"Fiber") == 0 || 
 	     strcmp(argv[1],"fiberSec") == 0 ||
 	     strcmp(argv[1],"NDFiberWarping") == 0 ||
-	     strcmp(argv[1],"NDFiber") == 0)
+	     strcmp(argv[1],"NDFiber") == 0 ||
+		 strcmp(argv[1],"NLFiber") == 0)
 
 	return TclCommand_addFiberSection (clientData, interp, argc, argv,
 					   theTclBuilder);
@@ -2088,6 +2090,7 @@ TclModelBuilderSectionCommand (ClientData clientData, Tcl_Interp *interp, int ar
 static int currentSectionTag = 0;
 static bool currentSectionIsND = false;
 static bool currentSectionIsWarping = false;
+static bool currentSectionIsNL = false;
     
 int
 buildSection(Tcl_Interp *interp, TclModelBuilder *theTclModelBuilder,
@@ -2123,6 +2126,9 @@ TclCommand_addFiberSection (ClientData clientData, Tcl_Interp *interp, int argc,
       currentSectionIsND = true;
       currentSectionIsWarping = true;
     }
+    if (strcmp(argv[1],"NLFiber") == 0)
+    	currentSectionIsNL = true;
+
 
     // create the fiber section representation (with the geometric information) 
       
@@ -3364,6 +3370,8 @@ buildSection(Tcl_Interp *interp, TclModelBuilder *theTclModelBuilder,
            else 
 	     section = new NDFiberSection2d(secTag, numFibers, fiber);
          }
+	 else if (currentSectionIsNL)
+		 section = new NLFiberSection2d(secTag, numFibers, fiber);
 	 else
 	   section = new FiberSection2d(secTag, numFibers, fiber);
 

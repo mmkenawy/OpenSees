@@ -116,6 +116,7 @@
 #define MAT_TAG_ParallelMaterial		 3
 #define MAT_TAG_Concrete01			 4
 #define MAT_TAG_Concrete01A			 444
+#define MAT_TAG_NLConcrete			 445
 #define MAT_TAG_Steel01				 5
 #define MAT_TAG_Hardening			 6
 #define MAT_TAG_Hysteretic			 7
@@ -284,6 +285,7 @@
 #define SEC_TAG_Fiber		                 8
 #define SEC_TAG_FiberSection2d		         9
 #define SEC_TAG_NDFiberSection2d		         900
+#define SEC_TAG_NLFiberSection2d				 901
 #define SEC_TAG_FiberSection3d		        10
 #define SEC_TAG_FiberSectionWarping3d		        1010
 #define SEC_TAG_NDFiberSection3d		         1000
@@ -602,6 +604,7 @@
 #define ELE_TAG_NineNodeMixedQuad          61
 #define ELE_TAG_DispBeamColumn2d        62
 #define ELE_TAG_DispBeamColumnNL2d        621
+#define ELE_TAG_NLDispBeamColumn2d        622
 #define ELE_TAG_TimoshenkoBeamColumn2d  63
 #define ELE_TAG_DispBeamColumn3d        64
 #define ELE_TAG_DispBeamColumnWarping3d        641

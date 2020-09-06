@@ -123,6 +123,7 @@ OBJS       = UniaxialMaterial.o \
 	MaterialState.o \
 	OOHystereticMaterial.o \
 	SPSW02.o \
+	NLConcrete.o \
         TclModelBuilderUniaxialMaterialCommand.o
 
 all:         $(OBJS)

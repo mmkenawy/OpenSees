@@ -59,9 +59,10 @@ class DomainComponent: public TaggedObject, public MovableObject
 
   protected:
     DomainComponent(int tag, int classTag);
+    Domain *theDomain; // a pointer to the enclosing Domain object
     
   private:    
-    Domain *theDomain; // a pointer to the enclosing Domain object
+ //   Domain *theDomain; // a pointer to the enclosing Domain object
 };
 
 #endif

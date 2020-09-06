@@ -61,6 +61,7 @@ class UniaxialMaterial : public Material
     virtual int setTrial (double strain, double &stress, double &tangent, double strainRate = 0.0);
     virtual int setTrial (double strain, double temperature, double &stress, double &tangent, double &thermalElongation, double strainRate = 0.0);
 
+    virtual int setNLStrain(double nlstrain);
     virtual double getStrain (void) = 0;
     virtual double getStrainRate (void);
     virtual double getStress (void) = 0;

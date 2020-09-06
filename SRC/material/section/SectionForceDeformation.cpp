@@ -519,3 +519,8 @@ const Vector& SectionForceDeformation::getThermalElong(void)
   errRes.resize(this->getStressResultant().Size());
   return errRes;
 }
+
+void
+  SectionForceDeformation::setNLsectiondeformation(const Vector &nldef)
+  {
+  }

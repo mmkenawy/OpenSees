@@ -502,6 +502,7 @@ ELE_LIBS   =  $(FE)/element/Element.o \
 	$(FE)/element/dispBeamColumn/AxEqDispBeamColumn2d.o \
 	$(FE)/element/dispBeamColumn/TimoshenkoBeamColumn2d.o \
 	$(FE)/element/dispBeamColumn/DispBeamColumn2d.o \
+	$(FE)/element/dispBeamColumn/NLDispBeamColumn2d.o \
 	$(FE)/element/dispBeamColumn/DispBeamColumnNL2d.o \
 	$(FE)/element/dispBeamColumn/DispBeamColumn2dThermal.o \
 	$(FE)/element/dispBeamColumn/DispBeamColumn3d.o \
@@ -678,6 +679,7 @@ MATERIAL_LIBS   =  $(FE)/material/Material.o \
 	$(FE)/material/uniaxial/SeriesMaterial.o \
 	$(FE)/material/uniaxial/Neoprene.o \
 	$(FE)/material/uniaxial/Concrete01.o \
+	$(FE)/material/uniaxial/NLConcrete.o \
 	$(FE)/material/uniaxial/Concrete02.o \
 	$(FE)/material/uniaxial/Concrete02IS.o \
 	$(FE)/material/uniaxial/Concrete04.o \
@@ -953,6 +955,7 @@ SECTION_LIBS = $(FE)/material/section/SectionForceDeformation.o \
 	$(FE)/material/section/ElasticWarpingShearSection2d.o \
 	$(FE)/material/section/ElasticTubeSection3d.o \
 	$(FE)/material/section/FiberSection2d.o \
+	$(FE)/material/section/NLFiberSection2d.o \
 	$(FE)/material/section/NDFiberSection2d.o \
 	$(FE)/material/section/NDFiberSectionWarping2d.o \
 	$(FE)/material/section/FiberSection2dThermal.o \

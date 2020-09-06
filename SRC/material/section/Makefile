@@ -14,6 +14,7 @@ OBJS       = SectionForceDeformation.o \
 	MembranePlateFiberSection.o \
 	TclModelBuilderSectionCommand.o \
 	FiberSection2d.o \
+	NLFiberSection2d.o \
 	NDFiberSection2d.o \
 	NDFiberSection3d.o \
 	NDFiberSectionWarping2d.o \

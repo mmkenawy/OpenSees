@@ -1338,6 +1338,7 @@ TclModelBuilderElementCommand(ClientData clientData, Tcl_Interp *interp,
 
   } else if (strcmp(argv[1],"forceBeamColumn") == 0 || 
 	     strcmp(argv[1],"dispBeamColumn") == 0  || 
+		 strcmp(argv[1],"NLDispBeamColumn2d") == 0  ||
 	     strcmp(argv[1],"timoshenkoBeamColumn") == 0  || 
 	     strcmp(argv[1],"forceBeamColumnCBDI") == 0  || 
 	     strcmp(argv[1],"forceBeamColumnCSBDI") == 0  || 

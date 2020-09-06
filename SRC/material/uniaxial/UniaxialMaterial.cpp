@@ -161,6 +161,11 @@ UniaxialMaterial::setTrial(double strain, double temperature, double &stress, do
   return res;
 }
 
+int
+UniaxialMaterial::setNLStrain(double nlstrain)
+{
+    return 0;
+}
 
 // default operation for strain rate is zero
 double

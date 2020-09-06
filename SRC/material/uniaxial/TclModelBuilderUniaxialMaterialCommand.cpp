@@ -74,6 +74,7 @@
 #include <string.h>
 
 #include <UniaxialJ2Plasticity.h>   // Quan 
+#include <NLConcrete.h> //Maha Kenawy
 
 extern void *OPS_SPSW02(void);		// SAJalali
 extern void *OPS_ElasticMaterial(void);
@@ -2814,6 +2815,54 @@ TclModelBuilderUniaxialMaterialCommand (ClientData clientData, Tcl_Interp *inter
       // Parsing was successful, allocate the material
       theMaterial = new UniaxialJ2Plasticity(tag, E, sigmaY, Hkin, Hiso);       
     }
+
+    // ----- Nonlocal concrete material ----
+    	    else if (strcmp(argv[1],"NLConcrete") == 0) {
+          if (argc < 7) {
+    		opserr << "WARNING invalid number of arguments\n";
+    		printCommand(argc,argv);
+    		opserr << "Want: uniaxialMaterial NLConcrete tag  E  fc  ec0  Ed" << endln;
+    		return TCL_ERROR;
+          }
+
+          int tag;
+          double E, sigmaY, Hkin, Hiso;
+
+    	  if (Tcl_GetInt(interp, argv[2], &tag) != TCL_OK) {
+    		opserr << "WARNING invalid uniaxialMaterial NLConcrete tag" << endln;
+    		return TCL_ERROR;
+    	  }
+
+    	  if (Tcl_GetDouble(interp, argv[3], &E) != TCL_OK) {
+    			opserr << "WARNING invalid E\n";
+    			opserr << "uniaxiaMaterial NLConcrete: " << tag << endln;
+    			return TCL_ERROR;
+    	  }
+
+    	   if (Tcl_GetDouble(interp, argv[4], &sigmaY) != TCL_OK) {
+    			opserr << "WARNING invalid sigmaY\n";
+    			opserr << "uniaxiaMaterial NLConcrete: " << tag << endln;
+    			return TCL_ERROR;
+    		  }
+
+    		  if (Tcl_GetDouble(interp, argv[5], &Hkin) != TCL_OK) {
+    			opserr << "WARNING invalid Hkin\n";
+    			opserr << "uniaxiaMaterial NLConcrete: " << tag << endln;
+    			return TCL_ERROR;
+    			}
+
+    		  if (argc >= 7)
+    			if (Tcl_GetDouble(interp,argv[6], &Hiso) != TCL_OK) {
+    			  opserr << "WARNING invalid Hiso\n";
+    			  opserr << "uniaxialMaterial NLConcrete: " << tag << endln;
+    			  return TCL_ERROR;
+    			}
+
+
+          // Parsing was successful, allocate the material
+          theMaterial = new NLConcrete(tag, E, sigmaY, Hkin, Hiso);
+        }
+
     else if (strcmp(argv[1],"KikuchiAikenHDR") == 0) { 
       return TclCommand_KikuchiAikenHDR(clientData, interp, argc, argv);
     }
