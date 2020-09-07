@@ -224,7 +224,7 @@ set nllength 400.0;
 for {set x 1} {$x <= $nel } {incr x} {
    set iNode [expr $x]
    set jNode [expr $x + 1]
-   element NLDispBeamColumn2d $x $iNode $jNode $numIntgrPts $SecTag $TransfTag $memID -nllength $nllength;
+   element NLDispBeamColumn2d $x $iNode $jNode $numIntgrPts $SecTag $TransfTag;
    puts "$x $iNode $jNode $numIntgrPts $memID $SecTag $TransfTag"
    }
 
