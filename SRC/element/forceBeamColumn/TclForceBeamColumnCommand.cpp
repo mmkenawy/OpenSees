@@ -191,7 +191,7 @@ TclModelBuilder_addForceBeamColumn(ClientData clientData, Tcl_Interp *interp,
       (strcmp(argv[6],"GaussQ") != 0) &&
       (strcmp(argv[6],"MidDistance") != 0)) {
 
-    int nIP, secTag, memID;
+    int nIP, secTag;
 
     if (Tcl_GetInt(interp, argv[5], &nIP) != TCL_OK) {
       opserr << "WARNING invalid nIP\n";
@@ -264,12 +264,6 @@ TclModelBuilder_addForceBeamColumn(ClientData clientData, Tcl_Interp *interp,
 	return TCL_ERROR;
       } else
 	argi++;
-    }
-
-    if (Tcl_GetInt(interp, argv[7], &memID) != TCL_OK) {
-      opserr << "WARNING invalid memID\n";
-      opserr << argv[1] << " element: " << eleTag << endln;
-      return TCL_ERROR;
     }
       
     int numIter = 10;
@@ -383,6 +377,23 @@ TclModelBuilder_addForceBeamColumn(ClientData clientData, Tcl_Interp *interp,
         beamIntegr = new LegendreBeamIntegration();
       }
     }
+
+    int memID;
+    if (strcmp(argv[1],"NLDispBeamColumn2d") == 0) {
+    	if (argc < 9) {
+    	    opserr << "WARNING insufficient arguments for nonlocal element\n";
+    	    printCommand(argc, argv);
+    	    opserr << "Want: element " << argv[1] << " eleTag? iNode? jNode? numPts? $SecTag $TransfTag memID?\n";
+    	    return TCL_ERROR;
+    	  }
+    	if (Tcl_GetInt(interp, argv[8], &memID) != TCL_OK) {
+    	      opserr << "WARNING invalid memID\n";
+    	      opserr << argv[1] << " element: " << eleTag << endln;
+    	      return TCL_ERROR;
+    	    }
+
+    }
+
 
 
     if (ndm == 2) {

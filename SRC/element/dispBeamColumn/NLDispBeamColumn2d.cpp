@@ -58,7 +58,7 @@ double NLDispBeamColumn2d::workArea[100];
 void* OPS_NLDispBeamColumn2d()
 {
     if(OPS_GetNumRemainingInputArgs() < 6) {
-	opserr<<"insufficient arguments:eleTag,iNode,jNode,transfTag,integrationTag memID <-nllength nllength> <-mass mass> <-cmass>\n";
+	opserr<<"insufficient arguments:eleTag,iNode,jNode,transfTag,integrationTag,memID <-nllength nllength> <-mass mass> <-cmass>\n";
 	return 0;
     }
 
@@ -172,7 +172,7 @@ void* OPS_NLDispBeamColumn2d(const ID &info)
     // regular element, or in a mesh
     if (info.Size()==0 || info(0)==1) {
 	if(OPS_GetNumRemainingInputArgs() < 3) {
-	    opserr<<"insufficient arguments: transfTag,integrationTag memID\n";
+	    opserr<<"insufficient arguments: transfTag,integrationTag,memID\n";
 	    return 0;
 	}
 
@@ -287,8 +287,8 @@ void* OPS_NLDispBeamColumn2d(const ID &info)
 
 int OPS_NLDispBeamColumn2d(Domain& theDomain, const ID& elenodes, ID& eletags)
 {
-    if(OPS_GetNumRemainingInputArgs() < 2) {
-	opserr<<"insufficient arguments:transfTag,integrationTag memID <-nllength nllength> <-mass mass> <-cmass>\n";
+    if(OPS_GetNumRemainingInputArgs() < 3) {
+	opserr<<"insufficient arguments:transfTag,integrationTag,memID <-nllength nllength> <-mass mass> <-cmass>\n";
 	return -1;
     }
 

@@ -117,6 +117,8 @@
 #define MAT_TAG_Concrete01			 4
 #define MAT_TAG_Concrete01A			 444
 #define MAT_TAG_NLConcrete			 445
+#define MAT_TAG_NLConcretewTension	 446
+#define MAT_TAG_NLConcrete01         447
 #define MAT_TAG_Steel01				 5
 #define MAT_TAG_Hardening			 6
 #define MAT_TAG_Hysteretic			 7

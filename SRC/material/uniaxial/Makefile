@@ -124,6 +124,8 @@ OBJS       = UniaxialMaterial.o \
 	OOHystereticMaterial.o \
 	SPSW02.o \
 	NLConcrete.o \
+	NLConcretewTension.o \
+	NLConcrete01.o \
         TclModelBuilderUniaxialMaterialCommand.o
 
 all:         $(OBJS)

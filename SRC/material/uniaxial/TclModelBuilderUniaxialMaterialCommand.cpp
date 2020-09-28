@@ -75,6 +75,7 @@
 
 #include <UniaxialJ2Plasticity.h>   // Quan 
 #include <NLConcrete.h> //Maha Kenawy
+#include <NLConcretewTension.h> //Maha Kenawy
 
 extern void *OPS_SPSW02(void);		// SAJalali
 extern void *OPS_ElasticMaterial(void);
@@ -94,6 +95,7 @@ extern void *OPS_Steel02Fatigue(void);
 extern void *OPS_RambergOsgoodSteel(void);
 extern void *OPS_ReinforcingSteel(void);
 extern void *OPS_Concrete01(void);
+extern void *OPS_NLConcrete01(void);
 extern void *OPS_Concrete02(void);
 extern void *OPS_Concrete02IS(void);
 extern void *OPS_PinchingLimitStateMaterial(void);
@@ -325,6 +327,13 @@ TclModelBuilderUniaxialMaterialCommand (ClientData clientData, Tcl_Interp *inter
 	theMaterial = (UniaxialMaterial *)theMat;
       else 
 	return TCL_ERROR;
+
+    } else if (strcmp(argv[1],"NLConcrete01") == 0) {
+          void *theMat = OPS_NLConcrete01();
+          if (theMat != 0)
+    	theMaterial = (UniaxialMaterial *)theMat;
+          else
+    	return TCL_ERROR;
       /*
 	    } else if (strcmp(argv[1],"HoehlerStanton") == 0) {
       void *theMat = OPS_HoehlerStanton();
@@ -2826,7 +2835,7 @@ TclModelBuilderUniaxialMaterialCommand (ClientData clientData, Tcl_Interp *inter
           }
 
           int tag;
-          double E, sigmaY, Hkin, Hiso;
+          double E, fc, ec0, Ed;
 
     	  if (Tcl_GetInt(interp, argv[2], &tag) != TCL_OK) {
     		opserr << "WARNING invalid uniaxialMaterial NLConcrete tag" << endln;
@@ -2839,29 +2848,87 @@ TclModelBuilderUniaxialMaterialCommand (ClientData clientData, Tcl_Interp *inter
     			return TCL_ERROR;
     	  }
 
-    	   if (Tcl_GetDouble(interp, argv[4], &sigmaY) != TCL_OK) {
-    			opserr << "WARNING invalid sigmaY\n";
+    	   if (Tcl_GetDouble(interp, argv[4], &fc) != TCL_OK) {
+    			opserr << "WARNING invalid fc\n";
     			opserr << "uniaxiaMaterial NLConcrete: " << tag << endln;
     			return TCL_ERROR;
     		  }
 
-    		  if (Tcl_GetDouble(interp, argv[5], &Hkin) != TCL_OK) {
-    			opserr << "WARNING invalid Hkin\n";
+    		  if (Tcl_GetDouble(interp, argv[5], &ec0) != TCL_OK) {
+    			opserr << "WARNING invalid ec0\n";
     			opserr << "uniaxiaMaterial NLConcrete: " << tag << endln;
     			return TCL_ERROR;
     			}
 
     		  if (argc >= 7)
-    			if (Tcl_GetDouble(interp,argv[6], &Hiso) != TCL_OK) {
-    			  opserr << "WARNING invalid Hiso\n";
+    			if (Tcl_GetDouble(interp,argv[6], &Ed) != TCL_OK) {
+    			  opserr << "WARNING invalid Ed\n";
     			  opserr << "uniaxialMaterial NLConcrete: " << tag << endln;
     			  return TCL_ERROR;
     			}
 
 
           // Parsing was successful, allocate the material
-          theMaterial = new NLConcrete(tag, E, sigmaY, Hkin, Hiso);
+          theMaterial = new NLConcrete(tag, E, fc, ec0, Ed);
         }
+
+    // ----- Nonlocal concrete material w tension----
+    	    else if (strcmp(argv[1],"NLConcretewTension") == 0) {
+          if (argc < 9) {
+    		opserr << "WARNING invalid number of arguments\n";
+    		printCommand(argc,argv);
+    		opserr << "Want: uniaxialMaterial NLConcretewTension tag  E  fc  ec0  Ed ft eft" << endln;
+    		return TCL_ERROR;
+          }
+
+          int tag;
+          double E, fc, ec0, Ed, ft, eft;
+
+    	  if (Tcl_GetInt(interp, argv[2], &tag) != TCL_OK) {
+    		opserr << "WARNING invalid uniaxialMaterial NLConcretewTension tag" << endln;
+    		return TCL_ERROR;
+    	  }
+
+    	  if (Tcl_GetDouble(interp, argv[3], &E) != TCL_OK) {
+    			opserr << "WARNING invalid E\n";
+    			opserr << "uniaxiaMaterial NLConcretewTension: " << tag << endln;
+    			return TCL_ERROR;
+    	  }
+
+    	   if (Tcl_GetDouble(interp, argv[4], &fc) != TCL_OK) {
+    			opserr << "WARNING invalid fc\n";
+    			opserr << "uniaxiaMaterial NLConcretewTension: " << tag << endln;
+    			return TCL_ERROR;
+    		  }
+
+    		  if (Tcl_GetDouble(interp, argv[5], &ec0) != TCL_OK) {
+    			opserr << "WARNING invalid ec0\n";
+    			opserr << "uniaxiaMaterial NLConcretewTension: " << tag << endln;
+    			return TCL_ERROR;
+    			}
+
+    		  if (Tcl_GetDouble(interp,argv[6], &Ed) != TCL_OK) {
+    			  opserr << "WARNING invalid Ed\n";
+    			  opserr << "uniaxialMaterial NLConcretewTension: " << tag << endln;
+    			  return TCL_ERROR;
+    		  }
+
+    		  if (Tcl_GetDouble(interp,argv[7], &ft) != TCL_OK) {
+    		      			  opserr << "WARNING invalid ft\n";
+    		      			  opserr << "uniaxialMaterial NLConcretewTension: " << tag << endln;
+    		      			  return TCL_ERROR;
+    		      		  }
+
+    		  if (Tcl_GetDouble(interp,argv[8], &eft) != TCL_OK) {
+    		      			  opserr << "WARNING invalid eft\n";
+    		      			  opserr << "uniaxialMaterial NLConcretewTension: " << tag << endln;
+    		      			  return TCL_ERROR;
+    		      		  }
+
+          // Parsing was successful, allocate the material
+          theMaterial = new NLConcretewTension(tag, E, fc, ec0, Ed, ft, eft);
+        }
+
 
     else if (strcmp(argv[1],"KikuchiAikenHDR") == 0) { 
       return TclCommand_KikuchiAikenHDR(clientData, interp, argc, argv);
