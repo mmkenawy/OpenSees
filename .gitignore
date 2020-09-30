@@ -54,7 +54,7 @@ CMakeLists.txt
 .vscode
 
 # OTHER
-#Makefile.def
+Makefile.def
 PlainConcrete.f
 forumat.f
 Damage2p.cpp
