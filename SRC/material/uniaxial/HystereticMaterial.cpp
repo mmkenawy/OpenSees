@@ -205,6 +205,7 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   if (TloadIndicator == 0 && strain == 0.0)
     return 0;
 
+  // Re-set trial values to their original converged values from previous step
   TrotMax = CrotMax;
   TrotMin = CrotMin;
   TenergyD = CenergyD;
@@ -213,45 +214,92 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   TnlstrainMax = CnlstrainMax;
   TnlstrainMin = CnlstrainMin;
 
+  // Set the trial strain value in the material, and compute the strain increment
   Tstrain = strain;
   double dStrain = Tstrain - Cstrain;
 
-  if (fabs(dStrain) < DBL_EPSILON)
-    return 0;
+  // Do not update the un-damanged stress state if the strain increment is close to zero
+  if (fabs(dStrain) < DBL_EPSILON) {
+    Tustress = Custress;
+  } else {
   
-  TloadIndicator = CloadIndicator;
-  
-  if (TloadIndicator == 0)
-    TloadIndicator = (dStrain < 0.0) ? 2 : 1;
-  
-  if (Tstrain >= CrotMax) {
-    TrotMax = Tstrain;
-    if (Tnlstrain >= CnlstrainMax)
-    	TnlstrainMax = Tnlstrain;
-    Ttangent = posEnvlpTangent(Tstrain);
-    Tstress = posEnvlpStress(Tstrain);
-	TloadIndicator=1;
-  }
-  else if (Tstrain <= CrotMin) {
-    TrotMin = Tstrain;
-    if (Tnlstrain <= CnlstrainMin)
-        	TnlstrainMin = Tnlstrain;
-    Ttangent = negEnvlpTangent(Tstrain);
-    Tstress = negEnvlpStress(Tstrain);
-	TloadIndicator=2;
-  }
-  else {
-    if (dStrain < 0.0)
-      negativeIncrement(dStrain);
-    else if (dStrain > 0.0)
-      positiveIncrement(dStrain);
+    // Re-set load indicator
+    TloadIndicator = CloadIndicator;
+
+    // If this is the first step, set the load indicator to:
+    // 1: if strain increment is positive or zero
+    // 2: if strain increment is negative
+    if (TloadIndicator == 0) TloadIndicator = (dStrain < 0.0) ? 2 : 1;
+
+    // Update the undamaged stress:
+    // Check whether the trial strain exceeds certain min/max strain bounds
+    if (Tstrain >= CrotMax) {
+      // if strain exceeds max value, assume we are on the (positive) +envelope
+      TrotMax = Tstrain;
+      // compute tangent and stress based upon a given strain position on the +envelope
+      Tutangent = posEnvlpTangent(Tstrain);
+      Tustress = posEnvlpStress(Tstrain);
+      // set the load indicator to 1: positive loading on the +envelope
+      TloadIndicator=1;
+    }
+    else if (Tstrain <= CrotMin) {
+      // if strain is below min value, assume we are on the (negative) -envelope
+      TrotMin = Tstrain;
+      // compute tangent and stress based upon a given strain position on the -envelope
+      Tutangent = negEnvlpTangent(Tstrain);
+      Tustress = negEnvlpStress(Tstrain);
+      // set the load indicator to 2: negative loading on the -envelope
+      TloadIndicator=2;
+    }
+    else {
+      // otherwise, assume we are somewhere inside of the quasi-"elastic" range
+      if (dStrain < 0.0)
+	// negative elastic (un)loading
+	negativeIncrement(dStrain);
+      else if (dStrain > 0.0)
+	// positive elastic loading
+	positiveIncrement(dStrain);
+    }
   }
 
+  // independently set the min/max trial non-local strain:
+  if (Tnlstrain >= CnlstrainMax) TnlstrainMax = Tnlstrain;
+  if (Tnlstrain <= CnlstrainMin) TnlstrainMin = Tnlstrain;
+
+  // Re-scale the stress by the damage factor in tension/compression:
+  if (Tustress < 0.0) {
+    // compute current damage in compression
+    double m = 1.5;
+    double rot0n = -mom2n/E3n + rot2n;
+    double nlrot = m*TnlstrainMin + (1.0-m)*TrotMin;
+    double dam = 1.0 - (fabs(rot0n)-fabs(nlrot))/(fabs(rot0n)-fabs(rot2n));
+    if (dam < 0.0)
+      dam = 0.0;
+    if (dam > 0.8)
+      dam = 0.8;
+    // apply negative damage scaling
+    Tstress = (1.0-dam)*Tustress;
+    Ttangent = (1.0-dam)*Tutangent;
+  } else {
+    // compute current damage in tension
+    double m = 1.5;
+    double rot0p = -mom2p/E3p + rot2p;
+    double nlrot = m*TnlstrainMax + (1.0-m)*TrotMax;
+    double dam = 1.0 - (fabs(rot0p)-fabs(nlrot))/(fabs(rot0p)-fabs(rot2p));
+    if (dam < 0.0)
+      dam = 0.0;
+    if (dam > 0.8)
+      dam = 0.8;
+    // apply positive damage scaling
+    Tstress = (1.0-dam)*Tustress;
+    Ttangent = (1.0-dam)*Tutangent;
+  }
+
+  // time-integrate: (trial internal energy) = time integral of { (stress) * (strain rate) }
   TenergyD = CenergyD + 0.5*(Cstress+Tstress)*dStrain;
 
-
   //  if (this->getTag() == 40)
-  //    opserr << "setTrial: " << Tstrain << " " << Ttangent << " " << Tstress << endln;
+  //    opserr << "setTrial: " << Tstrain << " " << Tutangent << " " << Tstress << endln;
   
   return 0;
 }
@@ -288,31 +336,46 @@ HystereticMaterial::positiveIncrement(double dStrain)
 	kn = (kn < 1.0) ? 1.0 : 1.0/kn;
 	double kp = pow(CrotMax/rot1p,beta);
 	kp = (kp < 1.0) ? 1.0 : 1.0/kp;
-
+	
+	// if the loading indicator shows a change from negative loading to positive loading
+	// (as indicated by the positive sign of the strain increment)
+	// then flip the load indicator to indicate positive loading
 	if (TloadIndicator == 2) {
 		TloadIndicator = 1;
-		if (Cstress <= 0.0) {
-			TrotNu = Cstrain - Cstress/(Eun*kn);
-			double energy = CenergyD - 0.5*Cstress/(Eun*kn)*Cstress;
+		// if the stress is currently less than zero, compute new TrotNu (plastic strain)
+		if (Custress <= 0.0) {
+		  // solve for TrotNu => Custress = Eun*kn*(Cstrain - TrotNu)
+		  // TrotNu is essentially the current reference 'plastic strain' value, e.g.
+		  // s = E*(e - e^p)
+			TrotNu = Cstrain - Custress/(Eun*kn);
+			double energy = CenergyD - 0.5*Custress/(Eun*kn)*Custress;
 			double damfc = 0.0;
 			if (CrotMin < rot1n) {
 				damfc = damfc2*energy/energyA;
 				damfc += damfc1*(CrotMin-rot1n)/rot1n;
 			}
+			// re-load the max strain (without damage, this should be unaltered)
 
 			TrotMax = CrotMax*(1.0+damfc);
 		}
 	}
 
-  TloadIndicator = 1;
+	// set the load indicator to match the positive direction of the strain increment
+	TloadIndicator = 1;
 
+	// threshhold the maximum strain (possibly for improving convergence or managing overflow?)
   if (TrotMax > POS_INF_STRAIN)
     TrotMax = POS_INF_STRAIN;
 
+  // threshhold the trial max strain to the lower bound of rot1p
 	TrotMax = (TrotMax > rot1p) ? TrotMax : rot1p;
 
+	// evaluate the positive envelope stress at the trial max strain value
 	double maxmom = posEnvlpStress(TrotMax);
+	// evaluate the negative strain limit: the min allowable value for the min strain value
 	double rotlim = negEnvlpRotlim(CrotMin);
+	// evaluate the relative strain as the larger of the negative strain limit or TrotNu
+	// (if the min allowable strain is numerical -infinity, rotrel will always be TrotNu)
 	double rotrel = (rotlim > TrotNu) ? rotlim : TrotNu;
 
 	// rotrel = TrotNu;
@@ -321,51 +384,57 @@ HystereticMaterial::positiveIncrement(double dStrain)
 	
 	//	double rotmp1 = rotrel + pinchY*(TrotMax-rotrel);
 
+	// Compute the pinching strain value (during unloading?) based upon the projected envelope stress
+	// solve for rotmp2 => (Eup*kp)*(TrotMax - rotmp2) = (1.0-pinchY)*maxmom
 	double rotmp2 = TrotMax - (1.0-pinchY)*maxmom/(Eup*kp);
 	//double rotmp2 = TrotMax-(1-pinchY)*maxmom/Eup;
 	//	double rotch = rotmp1 + (rotmp2-rotmp1)*pinchX;
+	// if pinchX in the range of 0 to 1 and rotrel=TrotNu, rotch is the pinching strain during loading?
 	double rotch = rotrel + (rotmp2-rotrel)*pinchX;                   // changed on 7/11/2006
 
 	double tmpmo1;
 	double tmpmo2;
 
+	// if the trial strain is less than the current plastic strain (negative stress regime):
 	if (Tstrain < TrotNu) {
-		Ttangent = Eun*kn;
-		Tstress = Cstress + Ttangent*dStrain;
-		if (Tstress >= 0.0) {
-			Tstress = 0.0;
-			Ttangent = Eun*1.0e-9;
+		Tutangent = Eun*kn;
+		Tustress = Custress + Tutangent*dStrain;
+		if (Tustress >= 0.0) {
+			Tustress = 0.0;
+			Tutangent = Eun*1.0e-9;
 		}
 	}
-
+	// if the trial strain exceeds the current plastic strain (positive stress regime)
+	// and we are on the first branch of the pinching curve
 	else if (Tstrain >= TrotNu && Tstrain < rotch) {
 		if (Tstrain <= rotrel) {
-			Tstress = 0.0;
-			Ttangent = Eup*1.0e-9;
+			Tustress = 0.0;
+			Tutangent = Eup*1.0e-9;
 		}
+		// increment the stress along the first branch of the pinching curve
 		else {
-			Ttangent = maxmom*pinchY/(rotch-rotrel);
-			tmpmo1 = Cstress + Eup*kp*dStrain;
-			tmpmo2 = (Tstrain-rotrel)*Ttangent;
+			Tutangent = maxmom*pinchY/(rotch-rotrel);
+			tmpmo1 = Custress + Eup*kp*dStrain;
+			tmpmo2 = (Tstrain-rotrel)*Tutangent;
 			if (tmpmo1 < tmpmo2) {
-				Tstress = tmpmo1;
-				Ttangent = Eup*kp;
+				Tustress = tmpmo1;
+				Tutangent = Eup*kp;
 			}
 			else
-				Tstress = tmpmo2;
+				Tustress = tmpmo2;
 		}
 	}
-
+	// if we are on the second branch of the pinching curve, increment stress accordingly
 	else {
-		Ttangent = (1.0-pinchY)*maxmom/(TrotMax-rotch);
-		tmpmo1 = Cstress + Eup*kp*dStrain;
-		tmpmo2 = pinchY*maxmom + (Tstrain-rotch)*Ttangent;
+		Tutangent = (1.0-pinchY)*maxmom/(TrotMax-rotch);
+		tmpmo1 = Custress + Eup*kp*dStrain;
+		tmpmo2 = pinchY*maxmom + (Tstrain-rotch)*Tutangent;
 		if (tmpmo1 < tmpmo2) {
-			Tstress = tmpmo1;
-			Ttangent = Eup*kp;
+			Tustress = tmpmo1;
+			Tutangent = Eup*kp;
 		}
 		else
-			Tstress = tmpmo2;
+			Tustress = tmpmo2;
 	}
 }
 
@@ -379,9 +448,9 @@ HystereticMaterial::negativeIncrement(double dStrain)
 
 	if (TloadIndicator == 1) {
 		TloadIndicator = 2;
-		if (Cstress >= 0.0) {
-			TrotPu = Cstrain - Cstress/(Eup*kp);
-			double energy = CenergyD - 0.5*Cstress/(Eup*kp)*Cstress;
+		if (Custress >= 0.0) {
+			TrotPu = Cstrain - Custress/(Eup*kp);
+			double energy = CenergyD - 0.5*Custress/(Eup*kp)*Custress;
 			double damfc = 0.0;
 			if (CrotMax > rot1p) {
 				damfc = damfc2*energy/energyA;
@@ -417,42 +486,42 @@ HystereticMaterial::negativeIncrement(double dStrain)
 	double tmpmo2;
 
 	if (Tstrain > TrotPu) {
-		Ttangent = Eup*kp;
-		Tstress = Cstress + Ttangent*dStrain;
-		if (Tstress <= 0.0) {
-			Tstress = 0.0;
-			Ttangent = Eup*1.0e-9;
+		Tutangent = Eup*kp;
+		Tustress = Custress + Tutangent*dStrain;
+		if (Tustress <= 0.0) {
+			Tustress = 0.0;
+			Tutangent = Eup*1.0e-9;
 		}
 	}
 
 	else if (Tstrain <= TrotPu && Tstrain > rotch) {
 		if (Tstrain >= rotrel) {
-			Tstress = 0.0;
-			Ttangent = Eun*1.0e-9;
+			Tustress = 0.0;
+			Tutangent = Eun*1.0e-9;
 		}
 		else {
-			Ttangent = minmom*pinchY/(rotch-rotrel);
-			tmpmo1 = Cstress + Eun*kn*dStrain;
-			tmpmo2 = (Tstrain-rotrel)*Ttangent;
+			Tutangent = minmom*pinchY/(rotch-rotrel);
+			tmpmo1 = Custress + Eun*kn*dStrain;
+			tmpmo2 = (Tstrain-rotrel)*Tutangent;
 			if (tmpmo1 > tmpmo2) {
-				Tstress = tmpmo1;
-				Ttangent = Eun*kn;
+				Tustress = tmpmo1;
+				Tutangent = Eun*kn;
 			}
 			else
-				Tstress = tmpmo2;
+				Tustress = tmpmo2;
 		}
 	}
 
 	else {
-		Ttangent = (1.0-pinchY)*minmom/(TrotMin-rotch);
-		tmpmo1 = Cstress + Eun*kn*dStrain;
-		tmpmo2 = pinchY*minmom + (Tstrain-rotch)*Ttangent;
+		Tutangent = (1.0-pinchY)*minmom/(TrotMin-rotch);
+		tmpmo1 = Custress + Eun*kn*dStrain;
+		tmpmo2 = pinchY*minmom + (Tstrain-rotch)*Tutangent;
 		if (tmpmo1 > tmpmo2) {
-			Tstress = tmpmo1;
-			Ttangent = Eun*kn;
+			Tustress = tmpmo1;
+			Tutangent = Eun*kn;
 		}
 		else
-			Tstress = tmpmo2;
+			Tustress = tmpmo2;
 	}
 }
 
@@ -467,6 +536,7 @@ HystereticMaterial::commitState(void)
 	CloadIndicator = TloadIndicator;
 
 	Cstress = Tstress;
+	Custress = Tustress;
 	Cstrain = Tstrain;
 	Cnlstrain = Tnlstrain;
 	CnlstrainMax = TnlstrainMax;
@@ -485,6 +555,7 @@ HystereticMaterial::revertToLastCommit(void)
 	TloadIndicator = CloadIndicator;
 
 	Tstress = Cstress;
+	Tustress = Custress;
 	Tstrain = Cstrain;
 	Tnlstrain = Cnlstrain;
 	TnlstrainMax = CnlstrainMax;
@@ -504,6 +575,7 @@ HystereticMaterial::revertToStart(void)
 	CloadIndicator = 0;
 
 	Cstress = 0.0;
+	Custress = 0.0;
 	Cstrain = 0.0;
 	Cnlstrain = 0.0;
 	CnlstrainMax = 0.0;
@@ -512,7 +584,9 @@ HystereticMaterial::revertToStart(void)
 	Tstrain = 0;
 	Tnlstrain = 0.0;
 	Tstress = 0;
+	Tustress = 0;
 	Ttangent = E1p;
+	Tutangent = E1p;
 
 	return 0;
 }
@@ -532,11 +606,13 @@ HystereticMaterial::getCopy(void)
 	theCopy->CenergyD = CenergyD;
 	theCopy->CloadIndicator = CloadIndicator;
 	theCopy->Cstress = Cstress;
+	theCopy->Custress = Custress;
 	theCopy->Cstrain = Cstrain;
 	theCopy->Cnlstrain = Cnlstrain;
 	theCopy->CnlstrainMax = CnlstrainMax;
 	theCopy->CnlstrainMin = CnlstrainMin;
 	theCopy->Ttangent = Ttangent;
+	theCopy->Tutangent = Tutangent;
 
 	return theCopy;
 }
@@ -546,7 +622,7 @@ HystereticMaterial::sendSelf(int commitTag, Channel &theChannel)
 {
   int res = 0;
   
-  static Vector data(30);
+  static Vector data(32);
   
   data(0) = this->getTag();
   data(1) = mom1p;
@@ -578,6 +654,8 @@ HystereticMaterial::sendSelf(int commitTag, Channel &theChannel)
   data(27) = Cnlstrain;
   data(28) = CnlstrainMax;
   data(29) = CnlstrainMin;
+  data(30) = Custress;
+  data(31) = Tutangent;
 
   res = theChannel.sendVector(this->getDbTag(), commitTag, data);
   if (res < 0) 
@@ -593,7 +671,7 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
 {
   int res = 0;
   
-  static Vector data(30);
+  static Vector data(32);
   res = theChannel.recvVector(this->getDbTag(), commitTag, data);
   
   if (res < 0) {
@@ -632,6 +710,8 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
     Cnlstrain = data(27);
     CnlstrainMax = data(28);
     CnlstrainMin = data(29);
+    Custress = data(30);
+    Tutangent = data(31);
 
     // set the trial values
     TrotMax = CrotMax;
@@ -641,6 +721,7 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
     TenergyD = CenergyD;
     TloadIndicator = CloadIndicator;
     Tstress = Cstress;
+    Tustress = Custress;
     Tstrain = Cstrain;
     Tnlstrain = Cnlstrain;
     TnlstrainMax = CnlstrainMax;
@@ -739,181 +820,84 @@ HystereticMaterial::setEnvelope(void)
 	if (E3n > Eun) Eun = E3n;
 }
 
-//double
-//HystereticMaterial::posEnvlpStress(double strain)
-//{
-//	if (strain <= 0.0)
-//		return 0.0;
-//	else if (strain <= rot1p)
-//		return E1p*strain;
-//	else if (strain <= rot2p)
-//		return mom1p + E2p*(strain-rot1p);
-//	else if (strain <= rot3p || E3p > 0.0)
-//		return mom2p + E3p*(strain-rot2p);
-//	else
-//		return mom3p;
-//}
-//
-//double
-//HystereticMaterial::negEnvlpStress(double strain)
-//{
-//	if (strain >= 0.0)
-//		return 0.0;
-//	else if (strain >= rot1n)
-//		return E1n*strain;
-//	else if (strain >= rot2n)
-//		return mom1n + E2n*(strain-rot1n);
-//	else if (strain >= rot3n || E3n > 0.0)
-//		return mom2n + E3n*(strain-rot2n);
-//	else
-//		return mom3n;
-//}
-
 double
 HystereticMaterial::posEnvlpStress(double strain)
 {
-	double m = 1.5;
-	double rot0p = -mom2p/E3p + rot2p;
-	double nlrot = m*TnlstrainMax + (1-m)*strain;
-	double dam = 0.0;
-	double stresstmp = 0.0;
-	dam = 1 - (fabs(rot0p)-fabs(nlrot))/(fabs(rot0p)-fabs(rot2p));
-	  if (dam < 0.0)
-	          dam = 0.0;
-	  if (dam > 0.8)
-	          dam = 0.8;
-
-//	  if (dam > 0.0)
-//	          //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
-//	  	  	  	Ttangent = Eh;
-//
-//	    if (fabs(1.0 - dam) < DBL_EPSILON)
-//	        Ttangent = 1.0e-10;
-
-	if (strain <= 0.0)
-		stresstmp = 0.0;
-	else if (strain <= rot1p)
-		stresstmp = E1p*strain;
-	else
-		stresstmp = fmin(mom1p + E2p*(strain-rot1p),mom2p);
-//	else if (strain <= rot2p)
-//		return mom1p + E2p*(strain-rot1p);
-//	else if (strain > rot2p) {
-	double momp = (1.0 - dam)*stresstmp;
-	return momp;
-//	}
-//	else if (strain <= rot3p || E3p > 0.0)
-//		return mom2p + E3p*(strain-rot2p);
-//	else
-//		return mom3p;
+  if (strain <= 0.0) {
+    // threshhold the envelope to 0 in the negative strain range
+    return 0.0;
+  } else if (strain <= rot1p) {
+    // initial elastic range
+    return E1p*strain;
+  } else if (strain <= rot1p + (mom2p - mom1p)/E2p) {
+    // first plastic (hardening) branch
+    return mom1p + E2p*(strain-rot1p);
+  } else {
+    // second (perfectly) plastic branch
+    return mom2p;
+  }
 }
 
 double
 HystereticMaterial::negEnvlpStress(double strain)
 {
-	double m = 1.5;
-	double rot0n = -mom2n/E3n + rot2n;
-	double nlrot = m*TnlstrainMin + (1-m)*strain;
-	double dam = 0.0;
-	double stresstmp = 0.0;
-	dam = 1 - (fabs(rot0n)-fabs(nlrot))/(fabs(rot0n)-fabs(rot2n));
-	  if (dam < 0.0)
-			  dam = 0.0;
-	  if (dam > 0.8)
-			  dam = 0.8;
-
-	//	  if (dam > 0.0)
-	//	          //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
-	//	  	  	  	Ttangent = Eh;
-	//
-	//	    if (fabs(1.0 - dam) < DBL_EPSILON)
-	//	        Ttangent = 1.0e-10;
-
-
-	if (strain >= 0.0)
-		stresstmp = 0.0;
-	else if (strain >= rot1n)
-		stresstmp = E1n*strain;
-	else
-		stresstmp = fmax(mom1n + E2n*(strain-rot1n),mom2n);
-//	else if (strain >= rot2n)
-//		return mom1n + E2n*(strain-rot1n);
-//	else if (strain < rot2n)
-//			return mom2n;
-//	else if (strain >= rot3n || E3n > 0.0)
-//		return mom2n + E3n*(strain-rot2n);
-//	else
-//		return mom3n;
-	double momp = (1.0 - dam)*stresstmp;
-	return momp;
+  if (strain >= 0.0) {
+    // threshhold the envelope to 0 in the positive strain range
+    return 0.0;
+  } else if (strain >= rot1n) {
+    // initial elastic range
+    return E1n*strain;
+  } else if (strain >= rot1n + (mom2n - mom1n)/E2n) {
+    // first plastic (hardening) branch
+    return mom1n + E2n*(strain-rot1n);
+  } else {
+    // second (perfectly) plastic branch
+    return mom2n;
+  }
 }
 
 double
 HystereticMaterial::posEnvlpTangent(double strain)
 {
-  if (strain < 0.0)
+  if (strain < 0.0) {
     return E1p*1.0e-9;
-  else if (strain <= rot1p)
+  } else if (strain <= rot1p) {
     return E1p;
-  else if (strain <= rot2p)
+  } else if (strain <= rot1p + (mom2p - mom1p)/E2p) {
     return E2p;
-  else if (strain <= rot3p || E3p > 0.0)
-    return E3p;
-  else
+  } else {
     return E1p*1.0e-9;
+  }
 }
 
 double
 HystereticMaterial::negEnvlpTangent(double strain)
 {
-  if (strain > 0.0)
+  if (strain > 0.0) {
     return E1n*1.0e-9;
-  else if (strain >= rot1n)
+  } else if (strain >= rot1n) {
     return E1n;
-  else if (strain >= rot2n)
+  } else if (strain >= rot1n + (mom2n - mom1n)/E2n) {
     return E2n;
-  else if (strain >= rot3n || E3n > 0.0)
-    return E3n;
-  else
+  } else {
     return E1n*1.0e-9;
+  }
 }
 
 double
 HystereticMaterial::posEnvlpRotlim(double strain)
 {
-  double strainLimit = POS_INF_STRAIN;
+  // The positive strain limit corresponds to the max allowable value of
+  // the max strain value. A limiting maximum value for the max pos. strain
+  // exists only when there is softening, and when the stress would otherwise go to zero.
+  // Having this limit prevents the stress from softening into negative stresses.
 
-  if (strain <= rot1p)
-    return POS_INF_STRAIN;
-  if (strain > rot1p && strain <= rot2p && E2p < 0.0)
-    strainLimit = rot1p - mom1p/E2p;
-  if (strain > rot2p && E3p < 0.0)
-    strainLimit = rot2p - mom2p/E3p;
-
-  if (strainLimit == POS_INF_STRAIN)
-    return POS_INF_STRAIN;
-  else if (posEnvlpStress(strainLimit) > 0)
-    return POS_INF_STRAIN;
-  else
-    return strainLimit;
+  // set the positive strain limit to the max floating point value (+infinity)
+  return POS_INF_STRAIN;
 }
 
 double
 HystereticMaterial::negEnvlpRotlim(double strain)
 {
-  double strainLimit = NEG_INF_STRAIN;
-
-  if (strain >= rot1n)
-    return NEG_INF_STRAIN;
-  if (strain < rot1n && strain >= rot2n && E2n < 0.0)
-    strainLimit = rot1n - mom1n/E2n;
-  if (strain < rot2n && E3n < 0.0)
-    strainLimit = rot2n - mom2n/E3n;
-
-  if (strainLimit == NEG_INF_STRAIN)
-    return NEG_INF_STRAIN;
-  else if (negEnvlpStress(strainLimit) < 0)
-    return NEG_INF_STRAIN;
-  else
-    return strainLimit;
+  return NEG_INF_STRAIN;
 }

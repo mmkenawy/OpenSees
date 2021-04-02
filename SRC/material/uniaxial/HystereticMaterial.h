@@ -109,6 +109,8 @@ class HystereticMaterial : public UniaxialMaterial
   double Tstress;
   double Tstrain;
   double Tnlstrain;
+  double Tustress; // un-damaged stress
+  double Tutangent;
   
   // Converged history variables
   double CrotMax;
@@ -124,6 +126,7 @@ class HystereticMaterial : public UniaxialMaterial
   double Cstress;
   double Cstrain;
   double Cnlstrain;
+  double Custress; // un-damaged stress
   
   // Backbone parameters
   double mom1p, rot1p;
