@@ -60,6 +60,7 @@ class HystereticMaterial : public UniaxialMaterial
   const char *getClassType(void) const {return "HystereticMaterial";};
   
   int setTrialStrain(double strain, double strainRate = 0.0);
+  int setNLStrain(double nlstrain);
   double getStrain(void);
   double getStress(void);
   double getTangent(void);
@@ -100,11 +101,14 @@ class HystereticMaterial : public UniaxialMaterial
   double TrotNu;
   double TenergyD;
   int TloadIndicator;
+  double TnlstrainMax;
+  double TnlstrainMin;
   
   // Trial state variables
   double Ttangent;
   double Tstress;
   double Tstrain;
+  double Tnlstrain;
   
   // Converged history variables
   double CrotMax;
@@ -113,10 +117,13 @@ class HystereticMaterial : public UniaxialMaterial
   double CrotNu;
   double CenergyD;
   int CloadIndicator;
+  double CnlstrainMax;
+  double CnlstrainMin;
   
   // Converged state variables
   double Cstress;
   double Cstrain;
+  double Cnlstrain;
   
   // Backbone parameters
   double mom1p, rot1p;
@@ -138,6 +145,9 @@ class HystereticMaterial : public UniaxialMaterial
   double posEnvlpStress(double strain);
   double negEnvlpStress(double strain);
   
+  //double posEnvlpStressNL(double strain);
+  //double negEnvlpStressNL(double strain);
+
   double posEnvlpTangent(double strain);
   double negEnvlpTangent(double strain);
   

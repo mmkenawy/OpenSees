@@ -210,6 +210,8 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   TenergyD = CenergyD;
   TrotPu = CrotPu;
   TrotNu = CrotNu;
+  TnlstrainMax = CnlstrainMax;
+  TnlstrainMin = CnlstrainMin;
 
   Tstrain = strain;
   double dStrain = Tstrain - Cstrain;
@@ -224,12 +226,16 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   
   if (Tstrain >= CrotMax) {
     TrotMax = Tstrain;
+    if (Tnlstrain >= CnlstrainMax)
+    	TnlstrainMax = Tnlstrain;
     Ttangent = posEnvlpTangent(Tstrain);
     Tstress = posEnvlpStress(Tstrain);
 	TloadIndicator=1;
   }
   else if (Tstrain <= CrotMin) {
     TrotMin = Tstrain;
+    if (Tnlstrain <= CnlstrainMin)
+        	TnlstrainMin = Tnlstrain;
     Ttangent = negEnvlpTangent(Tstrain);
     Tstress = negEnvlpStress(Tstrain);
 	TloadIndicator=2;
@@ -240,7 +246,7 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
     else if (dStrain > 0.0)
       positiveIncrement(dStrain);
   }
-  
+
   TenergyD = CenergyD + 0.5*(Cstress+Tstress)*dStrain;
 
 
@@ -250,6 +256,12 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   return 0;
 }
 
+int
+HystereticMaterial::setNLStrain(double nlstrain)
+{
+    Tnlstrain = nlstrain;
+    return 0;
+}
 
 double
 HystereticMaterial::getStrain(void)
@@ -456,6 +468,9 @@ HystereticMaterial::commitState(void)
 
 	Cstress = Tstress;
 	Cstrain = Tstrain;
+	Cnlstrain = Tnlstrain;
+	CnlstrainMax = TnlstrainMax;
+	CnlstrainMin = TnlstrainMin;
 	return 0;
 }
 
@@ -471,6 +486,9 @@ HystereticMaterial::revertToLastCommit(void)
 
 	Tstress = Cstress;
 	Tstrain = Cstrain;
+	Tnlstrain = Cnlstrain;
+	TnlstrainMax = CnlstrainMax;
+	TnlstrainMin = CnlstrainMin;
 
 	return 0;
 }
@@ -487,8 +505,12 @@ HystereticMaterial::revertToStart(void)
 
 	Cstress = 0.0;
 	Cstrain = 0.0;
+	Cnlstrain = 0.0;
+	CnlstrainMax = 0.0;
+	CnlstrainMin = 0.0;
 
 	Tstrain = 0;
+	Tnlstrain = 0.0;
 	Tstress = 0;
 	Ttangent = E1p;
 
@@ -511,6 +533,9 @@ HystereticMaterial::getCopy(void)
 	theCopy->CloadIndicator = CloadIndicator;
 	theCopy->Cstress = Cstress;
 	theCopy->Cstrain = Cstrain;
+	theCopy->Cnlstrain = Cnlstrain;
+	theCopy->CnlstrainMax = CnlstrainMax;
+	theCopy->CnlstrainMin = CnlstrainMin;
 	theCopy->Ttangent = Ttangent;
 
 	return theCopy;
@@ -521,7 +546,7 @@ HystereticMaterial::sendSelf(int commitTag, Channel &theChannel)
 {
   int res = 0;
   
-  static Vector data(27);
+  static Vector data(30);
   
   data(0) = this->getTag();
   data(1) = mom1p;
@@ -550,6 +575,9 @@ HystereticMaterial::sendSelf(int commitTag, Channel &theChannel)
   data(24) = Cstress;
   data(25) = Cstrain;
   data(26) = Ttangent;
+  data(27) = Cnlstrain;
+  data(28) = CnlstrainMax;
+  data(29) = CnlstrainMin;
 
   res = theChannel.sendVector(this->getDbTag(), commitTag, data);
   if (res < 0) 
@@ -565,7 +593,7 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
 {
   int res = 0;
   
-  static Vector data(27);
+  static Vector data(30);
   res = theChannel.recvVector(this->getDbTag(), commitTag, data);
   
   if (res < 0) {
@@ -601,6 +629,9 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
     Cstress = data(24);
     Cstrain = data(25);
     Ttangent = data(26);
+    Cnlstrain = data(27);
+    CnlstrainMax = data(28);
+    CnlstrainMin = data(29);
 
     // set the trial values
     TrotMax = CrotMax;
@@ -611,6 +642,9 @@ HystereticMaterial::recvSelf(int commitTag, Channel &theChannel,
     TloadIndicator = CloadIndicator;
     Tstress = Cstress;
     Tstrain = Cstrain;
+    Tnlstrain = Cnlstrain;
+    TnlstrainMax = CnlstrainMax;
+    TnlstrainMin = CnlstrainMin;
   }
 
   // Set envelope slopes
@@ -705,34 +739,113 @@ HystereticMaterial::setEnvelope(void)
 	if (E3n > Eun) Eun = E3n;
 }
 
+//double
+//HystereticMaterial::posEnvlpStress(double strain)
+//{
+//	if (strain <= 0.0)
+//		return 0.0;
+//	else if (strain <= rot1p)
+//		return E1p*strain;
+//	else if (strain <= rot2p)
+//		return mom1p + E2p*(strain-rot1p);
+//	else if (strain <= rot3p || E3p > 0.0)
+//		return mom2p + E3p*(strain-rot2p);
+//	else
+//		return mom3p;
+//}
+//
+//double
+//HystereticMaterial::negEnvlpStress(double strain)
+//{
+//	if (strain >= 0.0)
+//		return 0.0;
+//	else if (strain >= rot1n)
+//		return E1n*strain;
+//	else if (strain >= rot2n)
+//		return mom1n + E2n*(strain-rot1n);
+//	else if (strain >= rot3n || E3n > 0.0)
+//		return mom2n + E3n*(strain-rot2n);
+//	else
+//		return mom3n;
+//}
+
 double
 HystereticMaterial::posEnvlpStress(double strain)
 {
+	double m = 1.5;
+	double rot0p = -mom2p/E3p + rot2p;
+	double nlrot = m*TnlstrainMax + (1-m)*strain;
+	double dam = 0.0;
+	double stresstmp = 0.0;
+	dam = 1 - (fabs(rot0p)-fabs(nlrot))/(fabs(rot0p)-fabs(rot2p));
+	  if (dam < 0.0)
+	          dam = 0.0;
+	  if (dam > 0.8)
+	          dam = 0.8;
+
+//	  if (dam > 0.0)
+//	          //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
+//	  	  	  	Ttangent = Eh;
+//
+//	    if (fabs(1.0 - dam) < DBL_EPSILON)
+//	        Ttangent = 1.0e-10;
+
 	if (strain <= 0.0)
-		return 0.0;
+		stresstmp = 0.0;
 	else if (strain <= rot1p)
-		return E1p*strain;
-	else if (strain <= rot2p)
-		return mom1p + E2p*(strain-rot1p);
-	else if (strain <= rot3p || E3p > 0.0)
-		return mom2p + E3p*(strain-rot2p);
+		stresstmp = E1p*strain;
 	else
-		return mom3p;
+		stresstmp = fmin(mom1p + E2p*(strain-rot1p),mom2p);
+//	else if (strain <= rot2p)
+//		return mom1p + E2p*(strain-rot1p);
+//	else if (strain > rot2p) {
+	double momp = (1.0 - dam)*stresstmp;
+	return momp;
+//	}
+//	else if (strain <= rot3p || E3p > 0.0)
+//		return mom2p + E3p*(strain-rot2p);
+//	else
+//		return mom3p;
 }
 
 double
 HystereticMaterial::negEnvlpStress(double strain)
 {
+	double m = 1.5;
+	double rot0n = -mom2n/E3n + rot2n;
+	double nlrot = m*TnlstrainMin + (1-m)*strain;
+	double dam = 0.0;
+	double stresstmp = 0.0;
+	dam = 1 - (fabs(rot0n)-fabs(nlrot))/(fabs(rot0n)-fabs(rot2n));
+	  if (dam < 0.0)
+			  dam = 0.0;
+	  if (dam > 0.8)
+			  dam = 0.8;
+
+	//	  if (dam > 0.0)
+	//	          //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
+	//	  	  	  	Ttangent = Eh;
+	//
+	//	    if (fabs(1.0 - dam) < DBL_EPSILON)
+	//	        Ttangent = 1.0e-10;
+
+
 	if (strain >= 0.0)
-		return 0.0;
+		stresstmp = 0.0;
 	else if (strain >= rot1n)
-		return E1n*strain;
-	else if (strain >= rot2n)
-		return mom1n + E2n*(strain-rot1n);
-	else if (strain >= rot3n || E3n > 0.0)
-		return mom2n + E3n*(strain-rot2n);
+		stresstmp = E1n*strain;
 	else
-		return mom3n;
+		stresstmp = fmax(mom1n + E2n*(strain-rot1n),mom2n);
+//	else if (strain >= rot2n)
+//		return mom1n + E2n*(strain-rot1n);
+//	else if (strain < rot2n)
+//			return mom2n;
+//	else if (strain >= rot3n || E3n > 0.0)
+//		return mom2n + E3n*(strain-rot2n);
+//	else
+//		return mom3n;
+	double momp = (1.0 - dam)*stresstmp;
+	return momp;
 }
 
 double

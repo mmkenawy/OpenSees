@@ -373,7 +373,8 @@ void NLConcrete01::envelope ()
 
   Tstress = (1.0 - dam)*Tstresstmp;
   if (dam > 0.0)
-            Ttangent = Ed;
+          //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
+  	  	  	Ttangent = Eh;
 
     if (fabs(1.0 - dam) < DBL_EPSILON)
         Ttangent = 1.0e-10;

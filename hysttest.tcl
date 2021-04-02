@@ -41,7 +41,7 @@ set A [expr $B*$H];			# cross-sectional area
 set Iz [expr 1./12.*$B*pow($H,3)]; 	# Column moment of inertia
 #puts "weight is $Weight"
 
-set nel 5
+set nel 4
 set nnode [expr $nel + 1]
 set elsize [expr $L/$nel]
 
@@ -61,7 +61,7 @@ fix 1 1 1 1; 				# node DX DY RZ
 
 # we need to set up parameters that are particular to the model.
 set IDctrlNode $nnode;			# node where displacement is read for displacement control
-set IDctrlDOF 1;			# degree of freedom of displacement read for displacement control
+set IDctrlDOF 2;			# degree of freedom of displacement read for displacement control
 set iSupportNode "1";			# define support node, if needed.
 
 # nodal masses:
@@ -91,54 +91,67 @@ set IDsMinMax 6;
 
 # CONCRETE -----------------------------------------------------------------------------
 # nominal concrete compressive strength
-set fc 44;				# CONCRETE Compressive Strength, ksi   (+Tension, -Compression)
+set fc -44;				# CONCRETE Compressive Strength, ksi   (+Tension, -Compression)
+set Ec [expr 5000*sqrt(-$fc)]
 # unconfined concrete
 set fc1 $fc;					# UNCONFINED concrete, maximum stress
-set ec1 0.002;			# strain at maximum strength of unconfined concrete
-#set Ec [expr 2.0*$fc1/$ec1];		# Concrete Elastic Modulus
-set Ec [expr 4700*sqrt($fc)];
-puts "$Ec"
+set ec1 -0.002;				# strain at maximum strength of unconfined concrete
 set Ed -7333.3333;
+set fpcu 0.0;
+set epsu -0.008;
 
 # confined concrete
-set fcc1 48.32;
-set ecc1 0.0021964;				# strain at peak stress 
-#set Ecc [expr 2.0*$fc1/$ec1];
-set Ecc [expr 4700*sqrt($fc)];
+set fcc1 -48.32;
+set ecc1 -0.0021964;				# strain at peak stress 
 set Edc -1181.9683;
-
-
-# -----------
-#uniaxialMaterial uniaxialJ2Plasticity    tag       E   fc  ec0  Ed              
-# Core concrete (confined)
-uniaxialMaterial NLConcrete $IDconcCore $Ecc $fcc1 $ecc1 $Edc;	# build core concrete (confined)
+set fpcuc 0.0;
+set epsuc -0.043077;
 
 # Cover concrete (unconfined)
-uniaxialMaterial NLConcrete $IDconcCover $Ec $fc1 $ec1 $Ed;	# build cover concrete (unconfined)
-
+#uniaxialMaterial Concrete02 $IDconcCover $fc1 $ec1 $fpcu $epsu $lambda $ft $Ets
+#uniaxialMaterial NLConcrete01 $IDconcCover $fc1 $ec1 $fpcu $epsu
 
 
 # STEEL
 # Reinforcing steel 
-set Fy 446;				# STEEL yield stress
-set Es 200000;			# modulus of steel
+set Fy 446.0;				# STEEL yield stress
+set Es 200000.0;			# modulus of steel
 set Bs 0.019; 					# strain-hardening ratio 
-set Hs [expr $Bs*$Es];
+#set Hs [expr $Bs*$Es];
 set R0 15;					# control the transition from elastic to plastic branches
 set cR1 0.925;					# control the transition from elastic to plastic branches
-set cR2 0.15;					# control the transition from elastic to plastic branches
+set cR2 0.25;					# control the transition from elastic to plastic branches
 
-set ets 0.069598;
-set ecs -0.069598;
-set ecs -0.02;
+#set ets 0.069598;
+set ets 0.015;
+#set ecs $epsuc;
+set ecs [expr -$ets];
 
-# -----------   
+# hysteretic material properties
+set hystmatTag 11;
+set ey [expr $Fy/$Es];
+set Fu [expr $Bs*$Es*($ets-$ey) + $Fy];
+set s3p 0.0;
+set e3p [expr 2.0*$ets];
 
-#uniaxialMaterial UniaxialJ2Plasticity $IDreinf $Es $Fy 0.0 $Hs;
+#set s2n [expr -1.01*$Fy];
+set s2n [expr -$Fu];
+set s3n 0.0;
+set e3n [expr 2.0*$ecs];
+set pinchX 0.0;
+set pinchY 0.25;
+set damage1 0.0;
+set damage2 0.0;
 
-uniaxialMaterial Steel02 $IDreinf $Fy $Es $Bs $R0 $cR1 $cR2;
 
-uniaxialMaterial MinMax $IDsMinMax $IDreinf -min $ecs -max $ets
+# -----------
+
+#uniaxialMaterial Hysteretic $matTag $s1p $e1p $s2p $e2p <$s3p $e3p> $s1n $e1n $s2n $e2n <$s3n $e3n> $pinchX $pinchY $damage1 $damage2 
+
+uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2n $ecs $s3n $e3n $pinchX $pinchY $damage1 $damage2;
+#puts "uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2n $ecs $s3n $e3n $pinchX $pinchY $damage1 $damage2;"
+
+#uniaxialMaterial Steel02 $hystmatTag $Fy $Es $Bs $R0 $cR1 $cR2;
 	
 
 
@@ -176,41 +189,41 @@ puts "All material variables have been defined"
 #                    B
 #
 # RC section: 
-   set coverY [expr $H/2.0];		# The distance from the section z-axis to the edge of the cover concrete -- outer edge of cover concrete
-   set coverZ [expr $B/2.0];		# The distance from the section y-axis to the edge of the cover concrete -- outer edge of cover concrete
-   set coreY [expr $coverY-$cover];     # The distance from the section z-axis to the edge of the core concrete --  edge of the core concrete/inner edge of cover concrete
-   set coreZ [expr $coverZ-$cover];     # The distance from the section y-axis to the edge of the core concrete --  edge of the core concrete/inner edge of cover concrete
-   set steeldistY [expr $coverY-$steellayer];
-   set steeldistZ [expr $coverZ-$steellayer];
-   set nfCoreY 12;			# number of fibers for concrete in y-direction - core concrete
-   set nfCoreZ 1;			# number of fibers for concrete in z-direction - 
-   set nfCoverY 12;			# number of fibers for concrete in y-direction -- cover concrete
-   set nfCoverZ 1;			# number of fibers for concrete in z-direction
+   set coreY [expr $H/2.0];		# The distance from the section z-axis to the edge of the cover concrete -- outer edge of cover concrete
+   set coreZ [expr $B/2.0];		# The distance from the section y-axis to the edge of the cover concrete -- outer edge of cover concrete
+   # set coreY [expr $coverY-$cover];     # The distance from the section z-axis to the edge of the core concrete --  edge of the core concrete/inner edge of cover concrete
+   # set coreZ [expr $coverZ-$cover];     # The distance from the section y-axis to the edge of the core concrete --  edge of the core concrete/inner edge of cover concrete
+   #set steeldistY [expr $coverY-$steellayer];
+   # set steeldistZ [expr $coverZ-$steellayer];
+   set nfCoreY 2;			# number of fibers for concrete in y-direction - core concrete
+   set nfCoreZ 2;			# number of fibers for concrete in z-direction - 
+   # set nfCoverY 1;			# number of fibers for concrete in y-direction -- cover concrete
+   # set nfCoverZ 1;			# number of fibers for concrete in z-direction
  	
 
 section NLFiber $SecTag {;		# Define the fiber section
 	# Define the core patch 		   $yI    $zI     $yJ     $zJ    $yK     $zK    $yL    $zL
-	patch quadr $IDconcCore $nfCoreZ $nfCoreY -$coreY $coreZ -$coreY -$coreZ $coreY -$coreZ $coreY $coreZ;
+	patch quadr $hystmatTag $nfCoreZ $nfCoreY -$coreY $coreZ -$coreY -$coreZ $coreY -$coreZ $coreY $coreZ;
 
-	# Define the four cover patches       $yI     $zI      $yJ    $zJ    $yK    $zK    $yL     $zL
-	patch quadr $IDconcCover 1 $nfCoverY -$coverY $coverZ -$coreY $coreZ $coreY $coreZ $coverY $coverZ;
-	patch quadr $IDconcCover 1 $nfCoverY -$coreY -$coreZ -$coverY -$coverZ $coverY -$coverZ $coreY -$coreZ;
-	patch quadr $IDconcCover $nfCoverZ 1 -$coverY $coverZ -$coverY -$coverZ -$coreY -$coreZ -$coreY $coreZ;
-	patch quadr $IDconcCover $nfCoverZ 1  $coreY $coreZ $coreY -$coreZ $coverY -$coverZ $coverY $coverZ;
+	# # Define the four cover patches       $yI     $zI      $yJ    $zJ    $yK    $zK    $yL     $zL
+	# patch quadr $IDconcCover 1 $nfCoverY -$coverY $coverZ -$coreY $coreZ $coreY $coreZ $coverY $coverZ;
+	# patch quadr $IDconcCover 1 $nfCoverY -$coreY -$coreZ -$coverY -$coverZ $coverY -$coverZ $coreY -$coreZ;
+	# patch quadr $IDconcCover $nfCoverZ 1 -$coverY $coverZ -$coverY -$coverZ -$coreY -$coreZ -$coreY $coreZ;
+	# patch quadr $IDconcCover $nfCoverZ 1  $coreY $coreZ $coreY -$coreZ $coverY -$coverZ $coverY $coverZ;
 
-	# Define reinforcement layers
-	layer straight $IDsMinMax $numBarsLayer1 $BarArea -$steeldistY $steeldistZ -$steeldistY -$steeldistZ;				# bottom layer reinfocement
-	#layer straight $IDsMinMax $numBarsLayer2 $BarArea 0.0 $steeldistZ 0.0 -$steeldistZ; # 2nd layer reinforcement
-	layer straight $IDsMinMax $numBarsLayer2 $BarArea [expr -$steeldistY/3] $steeldistZ [expr -$steeldistY/3] -$steeldistZ; # 2nd layer reinforcement
-	layer straight $IDsMinMax $numBarsLayer3 $BarArea [expr $steeldistY/3] $steeldistZ [expr $steeldistY/3] -$steeldistZ; # 3rd layer reinforcement
-	layer straight $IDsMinMax $numBarsLayer4 $BarArea  $steeldistY $steeldistZ  $steeldistY -$steeldistZ;				# top layer reinforcement
+	# # Define reinforcement layers
+	# layer straight $IDsMinMax $numBarsLayer1 $BarArea -$steeldistY $steeldistZ -$steeldistY -$steeldistZ;				# bottom layer reinfocement
+	# #layer straight $IDsMinMax $numBarsLayer2 $BarArea 0.0 $steeldistZ 0.0 -$steeldistZ; # 2nd layer reinforcement
+	# layer straight $IDsMinMax $numBarsLayer2 $BarArea [expr -$steeldistY/3] $steeldistZ [expr -$steeldistY/3] -$steeldistZ; # 2nd layer reinforcement
+	# layer straight $IDsMinMax $numBarsLayer3 $BarArea [expr $steeldistY/3] $steeldistZ [expr $steeldistY/3] -$steeldistZ; # 3rd layer reinforcement
+	# layer straight $IDsMinMax $numBarsLayer4 $BarArea  $steeldistY $steeldistZ  $steeldistY -$steeldistZ;				# top layer reinforcement
 
     };	# end of fibersection definition
 puts "Section has been defined"
 
 # define geometric transformation: performs a linear geometric transformation of beam stiffness and resisting force from the basic system to the global-coordinate system
 set TransfTag 1; 			# associate a tag to column transformation
-set TransfType PDelta;			# options, Linear PDelta Corotational 
+set TransfType Linear;			# options, Linear PDelta Corotational 
 geomTransf $TransfType $TransfTag; 	
 
 # element connectivity:
@@ -218,15 +231,15 @@ geomTransf $TransfType $TransfTag;
 #set iNode 1;
 #set jNode 2;
 set numIntgrPts 2;									# number of integration points for force-based element
-set memID 1;
 set nllength 400.0;
+set memID 1;
 
 # define elements
 for {set x 1} {$x <= $nel } {incr x} {
    set iNode [expr $x]
    set jNode [expr $x + 1]
    element NLDispBeamColumn2d $x $iNode $jNode $numIntgrPts $SecTag $TransfTag $memID -nllength $nllength;
-   puts "$x $iNode $jNode $numIntgrPts $SecTag $TransfTag $memID"
+   puts "NLDispBeamColumn2d $x $iNode $jNode $numIntgrPts $SecTag $TransfTag $memID -nllength $nllength";
    }
 
 
@@ -245,37 +258,35 @@ recorder Node -file RBase.out -time -node 1 -dof 1 2 3 reaction;				# support re
 #recorder Element -file $dataDir/DefoColSec$numIntgrPts.out -time -ele 1 section 1 deformation;		# section deformations, axial and curvature, node j
 #recorder Element -xml $dataDir/PlasticRotation.out -time -ele 1 plasticRotation;			# section deformations, axial and curvature, node j
 
-# # #fiber stress-strain recorders
-# set recsec 1;
+#fiber stress-strain recorders
+set recsec 1;
 # recorder Element -file coverstraint.out -time -ele 1 section $recsec fiber $coverY 0.0 $IDconcCover strain
 # recorder Element -file coverstresst.out -time -ele 1 section $recsec fiber $coverY 0.0 $IDconcCover stress
 # recorder Element -file coverstrainb.out -time -ele 1 section $recsec fiber -$coverY 0.0 $IDconcCover strain
 # recorder Element -file coverstressb.out -time -ele 1 section $recsec fiber -$coverY 0.0 $IDconcCover stress
 
-# recorder Element -file corestraint.out -time -ele 1 section $recsec fiber $coreY 0.0 $IDconcCore strain
-# recorder Element -file corestresst.out -time -ele 1 section $recsec fiber $coreY 0.0 $IDconcCore stress
-# recorder Element -file corestrainb.out -time -ele 1 section $recsec fiber -$coreY 0.0 $IDconcCore strain
-# recorder Element -file corestressb.out -time -ele 1 section $recsec fiber -$coreY 0.0 $IDconcCore stress
-# recorder Element -file corestrainc.out -time -ele 1 section $recsec fiber 0.0 0.0  $IDconcCore strain
-# recorder Element -file corestressc.out -time -ele 1 section $recsec fiber 0.0 0.0  $IDconcCore stress
+recorder Element -file corestraint.out -time -ele 1 section $recsec fiber $coreY $coreZ $hystmatTag strain
+recorder Element -file corestresst.out -time -ele 1 section $recsec fiber $coreY $coreZ $hystmatTag stress
+recorder Element -file corestrainb.out -time -ele 1 section $recsec fiber -$coreY $coreZ $hystmatTag strain
+recorder Element -file corestressb.out -time -ele 1 section $recsec fiber -$coreY $coreZ $hystmatTag stress
+recorder Element -file corestrainc.out -time -ele 1 section $recsec fiber 0.0 0.0  $hystmatTag strain
+recorder Element -file corestressc.out -time -ele 1 section $recsec fiber 0.0 0.0  $hystmatTag stress
 
-# recorder Element -file reinfstraint.out -time -ele 1 section $recsec fiber $steeldistY $steeldistZ $IDreinf strain
-# recorder Element -file reinfstresst.out -time -ele 1 section $recsec fiber $steeldistY $steeldistZ $IDreinf stress
-# recorder Element -file reinfstrainb.out -time -ele 1 section $recsec fiber -$steeldistY $steeldistZ $IDreinf strain
-# recorder Element -file reinfstressb.out -time -ele 1 section $recsec fiber -$steeldistY $steeldistZ $IDreinf stress
+# recorder Element -file reinfstraint.out -time -ele 1 section $recsec fiber $steeldistY $steeldistZ $IDsMinMax  strain
+# recorder Element -file reinfstresst.out -time -ele 1 section $recsec fiber $steeldistY $steeldistZ $IDsMinMax  stress
+# recorder Element -file reinfstrainb.out -time -ele 1 section $recsec fiber -$steeldistY $steeldistZ $IDsMinMax  strain
+# recorder Element -file reinfstressb.out -time -ele 1 section $recsec fiber -$steeldistY $steeldistZ $IDsMinMax  stress
 
 
-recorder Element -file profile.out -ele 1 integrationPoints;
- #section deformations, axial and curvature
- set nsec [expr $numIntgrPts*$nel]
- set intincr [expr $numIntgrPts - 1]
-for {set x 1} {$x <= $nsec } {incr x $numIntgrPts} {
-recorder Element -file DefoColSec$x.out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 1 deformation;
-recorder Element -file DefoColSec[expr $x+1].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 2 deformation;
-# recorder Element -file DefoColSec[expr $x+2].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 3 deformation;
-# recorder Element -file DefoColSec[expr $x+3].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 4 deformation;
-# recorder Element -file DefoColSec[expr $x+4].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 5 deformation;
-} 		
+# recorder Element -file profile.out -ele 1 integrationPoints;
+ # #section deformations, axial and curvature
+ # set nsec [expr $numIntgrPts*$nel]
+ # set intincr [expr $numIntgrPts - 1]
+# for {set x 1} {$x <= $nsec } {incr x $numIntgrPts} {
+# recorder Element -file DefoColSec$x.out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 1 deformation;
+# recorder Element -file DefoColSec[expr $x+1].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 2 deformation;
+# #recorder Element -file DefoColSec[expr $x+2].out -time -ele [expr ($x+$intincr)/$numIntgrPts] -section 3 deformation;
+# } 		
 
 # define GRAVITY -------------------------------------------------------------
 pattern Plain 1 Linear {
@@ -311,7 +322,7 @@ pattern Plain 2 Linear {;
 ## Analysis parameters
 set IDctrlNode $nnode;				# node where displacement is read for displacement control
 set IDctrlDOF 1;
-set Dincr 0.1;			# displacement increment for pushover. you want this to be very small, but not too small to slow down the analysis
+set Dincr 0.2;			# displacement increment for pushover. you want this to be very small, but not too small to slow down the analysis
 set Tol 1.e-5;                 			# Convergence Test: tolerance
 set maxNumIter 2000;               		# Convergence Test: maximum number of iterations that will be performed before "failure to converge" is returned
 set printFlag 0;               			# Convergence Test: flag used to print information on convergence (optional)        # 1: print information on each step; 
@@ -327,7 +338,7 @@ integrator DisplacementControl  $IDctrlNode $IDctrlDOF $Dincr;
 analysis Static;
 
 #  ---------------------------------    perform Static Pushover Analysis
-set Nsteps [expr 1500];		        # number of pushover analysis steps
+set Nsteps 1200;		        # number of pushover analysis steps
 
 set currentStep 0;
 set ok 0
