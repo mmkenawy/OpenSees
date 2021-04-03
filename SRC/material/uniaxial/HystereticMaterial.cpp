@@ -273,6 +273,8 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
     double rot0n = -mom2n/E3n + rot2n;
     double nlrot = m*TnlstrainMin + (1.0-m)*TrotMin;
     double dam = 1.0 - (fabs(rot0n)-fabs(nlrot))/(fabs(rot0n)-fabs(rot2n));
+    if (dam > 0.0)
+          double dum = 0.0;
     if (dam < 0.0)
       dam = 0.0;
     if (dam > 0.8)
@@ -286,6 +288,8 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
     double rot0p = -mom2p/E3p + rot2p;
     double nlrot = m*TnlstrainMax + (1.0-m)*TrotMax;
     double dam = 1.0 - (fabs(rot0p)-fabs(nlrot))/(fabs(rot0p)-fabs(rot2p));
+    if (dam > 0.0)
+      double dum = 0.0;
     if (dam < 0.0)
       dam = 0.0;
     if (dam > 0.8)
@@ -296,7 +300,7 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   }
 
   // time-integrate: (trial internal energy) = time integral of { (stress) * (strain rate) }
-  TenergyD = CenergyD + 0.5*(Cstress+Tstress)*dStrain;
+  TenergyD = CenergyD + 0.5*(Custress+Tustress)*dStrain;
 
   //  if (this->getTag() == 40)
   //    opserr << "setTrial: " << Tstrain << " " << Tutangent << " " << Tstress << endln;
