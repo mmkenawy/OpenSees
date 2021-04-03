@@ -58,6 +58,7 @@ class Steel01 : public UniaxialMaterial
     const char *getClassType(void) const {return "Steel01";};
 
     int setTrialStrain(double strain, double strainRate = 0.0); 
+    int setNLStrain(double nlstrain);
     int setTrial (double strain, double &stress, double &tangent, double strainRate = 0.0);
     double getStrain(void);              
     double getStress(void);
@@ -112,8 +113,12 @@ class Steel01 : public UniaxialMaterial
 
     /*** CONVERGED State Variables ***/    
     double Cstrain;
+    double Cnlstrain;
+    double Custress;
     double Cstress;
-    double Ctangent;    
+    double Cdamage;
+    double Cutangent;
+    double Ctangent;
 
     /*** TRIAL History Variables ***/
     double TminStrain;
@@ -124,12 +129,19 @@ class Steel01 : public UniaxialMaterial
     
     /*** TRIAL State Variables ***/
     double Tstrain;
+    double Tnlstrain;
+    double Tustress;
     double Tstress;
+    double Tdamage;
+    double Tutangent;
     double Ttangent; // Not really a state variable, but declared here
                      // for convenience
 
     // Calculates the trial state variables based on the trial strain
     void determineTrialState (double dStrain);
+
+    // Apply damage to the current stress state
+    void applyDamage (void);
 
     // Determines if a load reversal has occurred based on the trial strain
     void detectLoadReversal (double dStrain);

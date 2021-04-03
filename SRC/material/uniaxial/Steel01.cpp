@@ -109,7 +109,7 @@ Steel01::Steel01
    // History variables
 	Energy = 0;	//by SAJalali
 	
-	CminStrain = 0.0;
+   CminStrain = 0.0;
    CmaxStrain = 0.0;
    CshiftP = 1.0;
    CshiftN = 1.0;
@@ -123,11 +123,19 @@ Steel01::Steel01
 
    // State variables
    Cstrain = 0.0;
+   Cnlstrain = 0.0;
+   Custress = 0.0;
    Cstress = 0.0;
+   Cdamage = 0.0;
+   Cutangent = E0;
    Ctangent = E0;
 
    Tstrain = 0.0;
+   Tnlstrain = 0.0;
+   Tustress = 0.0;
    Tstress = 0.0;
+   Tdamage = 0.0;
+   Tutangent = E0;
    Ttangent = E0;
 
 // AddingSensitivity:BEGIN /////////////////////////////////////
@@ -165,7 +173,11 @@ int Steel01::setTrialStrain (double strain, double strainRate)
    TshiftN = CshiftN;
    Tloading = Cloading;
    Tstrain = Cstrain;
+   //Tnlstrain = Cnlstrain; // done in setNLStrain
+   Tustress = Custress;
    Tstress = Cstress;
+   Tdamage = Cdamage;
+   Tutangent = Cutangent;
    Ttangent = Ctangent;
 
    // Determine change in strain from last converged state
@@ -179,6 +191,9 @@ int Steel01::setTrialStrain (double strain, double strainRate)
      determineTrialState (dStrain);
 
    }
+
+   // Apply damage scaling to the current stress
+   applyDamage();
 
    return 0;
 }
@@ -192,7 +207,11 @@ int Steel01::setTrial (double strain, double &stress, double &tangent, double st
    TshiftN = CshiftN;
    Tloading = Cloading;
    Tstrain = Cstrain;
+   //Tnlstrain = Cnlstrain; // done in setNLStrain
+   Tustress = Custress;
    Tstress = Cstress;
+   Tdamage = Cdamage;
+   Tutangent = Cutangent;
    Ttangent = Ctangent;
 
    // Determine change in strain from last converged state
@@ -207,10 +226,49 @@ int Steel01::setTrial (double strain, double &stress, double &tangent, double st
 
    }
 
+   // Apply damage scaling to the current stress
+   applyDamage();
+
    stress = Tstress;
    tangent = Ttangent;
 
    return 0;
+}
+
+void Steel01::applyDamage (void)
+{
+  // Re-scale the stress by the damage factor in tension/compression:
+   if (Tustress < 0.0) {
+     // compute current damage in compression
+     double m = 1.5;
+     double nlstrain = m*Tnlstrain + (1.0-m)*strain;
+     double rot0n = 1.0; // final strain at zero stress
+     double rot2n = 0.5; // strain at initial softening
+     double dam = 1.0 - (fabs(rot0n)-fabs(nlstrain))/(fabs(rot0n)-fabs(rot2n));
+     if (dam < 0.0)
+       dam = 0.0;
+     if (dam > 0.8)
+       dam = 0.8;
+     if (dam > Cdamage) Tdamage = dam;
+     // apply negative damage scaling
+     Tstress = (1.0-Tdamage)*Tustress;
+     Ttangent = (1.0-Tdamage)*Tutangent;
+   } else {
+     // compute current damage in tension
+     double m = 1.5;
+     double nlstrain = m*Tnlstrain + (1.0-m)*strain;
+     double rot0p = 1.0; // final strain at zero stress
+     double rot2p = 0.5; // strain at initial softening
+     double dam = 1.0 - (fabs(rot0p)-fabs(nlstrain))/(fabs(rot0p)-fabs(rot2p));
+     if (dam < 0.0)
+       dam = 0.0;
+     if (dam > 0.8)
+       dam = 0.8;
+     if (dam > Cdamage) Tdamage = dam;
+     // apply positive damage scaling
+     Tstress = (1.0-Tdamage)*Tustress;
+     Ttangent = (1.0-Tdamage)*Tutangent;
+   }
 }
 
 void Steel01::determineTrialState (double dStrain)
@@ -226,7 +284,7 @@ void Steel01::determineTrialState (double dStrain)
 
       double c3 = TshiftP*fyOneMinusB;
 
-      double c = Cstress + E0*dStrain;
+      double c = Custress + E0*dStrain;
 
       /**********************************************************
          removal of the following lines due to problems with
@@ -239,25 +297,25 @@ void Steel01::determineTrialState (double dStrain)
       double c1c3 = c1 + c3;
 
       if (c1c3 < c)
-	Tstress = c1c3;
+	Tustress = c1c3;
       else
-	Tstress = c;
+	Tustress = c;
 
       double c1c2 = c1-c2;
 
-      if (c1c2 > Tstress)
-	Tstress = c1c2;
+      if (c1c2 > Tustress)
+	Tustress = c1c2;
 
       /* ***********************************************************
       and replace them with:
 
-      Tstress = fmax((c1-c2), fmin((c1+c3),c));
+      Tustress = fmax((c1-c2), fmin((c1+c3),c));
       **************************************************************/
 
-      if (fabs(Tstress-c) < DBL_EPSILON)
-	  Ttangent = E0;
+      if (fabs(Tustress-c) < DBL_EPSILON)
+	  Tutangent = E0;
       else
-	Ttangent = Esh;
+	Tutangent = Esh;
 
       //
       // Determine if a load reversal has occurred due to the trial strain
@@ -324,6 +382,12 @@ void Steel01::detectLoadReversal (double dStrain)
    }
 }
 
+int Steel01::setNLStrain(double nlstrain)
+{
+    Tnlstrain = nlstrain;
+    return 0;
+}
+
 double Steel01::getStrain ()
 {
    return Tstrain;
@@ -350,10 +414,14 @@ int Steel01::commitState ()
 
    // State variables
    //by SAJalali
-   Energy += 0.5*(Tstress + Cstress)*(Tstrain - Cstrain);
+   Energy += 0.5*(Tustress + Custress)*(Tstrain - Cstrain);
 
    Cstrain = Tstrain;
+   Cnlstrain = Tnlstrain;
    Cstress = Tstress;
+   Custress = Tustress;
+   Cdamage = Tdamage;
+   Cutangent = Tutangent;
    Ctangent = Ttangent;
 
    return 0;
@@ -370,7 +438,11 @@ int Steel01::revertToLastCommit ()
 
    // Reset trial state variables to last committed state
    Tstrain = Cstrain;
+   Tnlstrain = Cnlstrain;
    Tstress = Cstress;
+   Tustress = Custress;
+   Tdamage = Cdamage;
+   Tutangent = Cutangent;
    Ttangent = Ctangent;
 
    return 0;
@@ -393,11 +465,19 @@ int Steel01::revertToStart ()
 
    // State variables
    Cstrain = 0.0;
+   Cnlstrain = 0.0;
    Cstress = 0.0;
+   Custress = 0.0;
+   Cdamage = 0.0;
+   Cutangent = E0;
    Ctangent = E0;
 
    Tstrain = 0.0;
+   Tnlstrain = 0.0;
    Tstress = 0.0;
+   Tustress = 0.0;
+   Tdamage = 0.0;
+   Tutangent = E0;
    Ttangent = E0;
 
 // AddingSensitivity:BEGIN /////////////////////////////////
@@ -429,12 +509,20 @@ UniaxialMaterial* Steel01::getCopy ()
 
    // Converged state variables
    theCopy->Cstrain = Cstrain;
+   theCopy->Cnlstrain = Cnlstrain;
    theCopy->Cstress = Cstress;
+   theCopy->Custress = Custress;
+   theCopy->Cdamage = Cdamage;
+   theCopy->Cutangent = Cutangent;
    theCopy->Ctangent = Ctangent;
 
    // Trial state variables
    theCopy->Tstrain = Tstrain;
+   theCopy->Tnlstrain = Tnlstrain;
    theCopy->Tstress = Tstress;
+   theCopy->Tustress = Tustress;
+   theCopy->Tdamage = Tdamage;
+   theCopy->Tutangent = Tutangent;
    theCopy->Ttangent = Ttangent;
 
    return theCopy;
@@ -443,7 +531,7 @@ UniaxialMaterial* Steel01::getCopy ()
 int Steel01::sendSelf (int commitTag, Channel& theChannel)
 {
    int res = 0;
-   static Vector data(16);
+   static Vector data(20);
    data(0) = this->getTag();
 
    // Material properties
@@ -464,8 +552,12 @@ int Steel01::sendSelf (int commitTag, Channel& theChannel)
 
    // State variables from last converged state
    data(13) = Cstrain;
-   data(14) = Cstress;
-   data(15) = Ctangent;
+   data(14) = Cnlstrain;
+   data(15) = Cstress;
+   data(16) = Custress;
+   data(17) = Cdamage;
+   data(18) = Cutangent;
+   data(19) = Ctangent;
 
    // Data is only sent after convergence, so no trial variables
    // need to be sent through data vector
@@ -481,7 +573,7 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
                                 FEM_ObjectBroker& theBroker)
 {
    int res = 0;
-   static Vector data(16);
+   static Vector data(20);
    res = theChannel.recvVector(this->getDbTag(), commitTag, data);
   
    if (res < 0) {
@@ -517,12 +609,20 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
 
       // State variables from last converged state
       Cstrain = data(13);
-      Cstress = data(14);
-      Ctangent = data(15);      
+      Cnlstrain = data(14);
+      Cstress = data(15);
+      Custress = data(16);
+      Cdamage = data(17);
+      Cutangent = data(18);
+      Ctangent = data(19);      
 
       // Copy converged state values into trial values
       Tstrain = Cstrain;
+      Tnlstrain = Cnlstrain;
       Tstress = Cstress;
+      Tustress = Custress;
+      Tdamage = Cdamage;
+      Tutangent = Cutangent;
       Ttangent = Ctangent;
    }
     
@@ -630,7 +730,7 @@ Steel01::updateParameter(int parameterID, Information &info)
 		return -1;
 	}
 
-	Ttangent = E0;          // Initial stiffness
+	Tutangent = E0;          // Initial stiffness
 
 	return 0;
 }
