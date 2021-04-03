@@ -262,17 +262,14 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
     }
   }
 
-  // independently set the min/max trial non-local strain:
-  if (Tnlstrain >= CnlstrainMax) TnlstrainMax = Tnlstrain;
-  if (Tnlstrain <= CnlstrainMin) TnlstrainMin = Tnlstrain;
-
   // Re-scale the stress by the damage factor in tension/compression:
   if (Tustress < 0.0) {
     // compute current damage in compression
     double m = 1.5;
     double rot0n = -mom2n/E3n + rot2n;
-    double nlrot = m*TnlstrainMin + (1.0-m)*TrotMin;
-    double dam = 1.0 - (fabs(rot0n)-fabs(nlrot))/(fabs(rot0n)-fabs(rot2n));
+    double nlrot = m*Tnlstrain + (1.0-m)*strain;
+    if (nlrot < CnlstrainMin) TnlstrainMin = nlrot;
+    double dam = 1.0 - (fabs(rot0n)-fabs(TnlstrainMin))/(fabs(rot0n)-fabs(rot2n));
     if (dam < 0.0)
       dam = 0.0;
     if (dam > 0.8)
@@ -284,8 +281,9 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
     // compute current damage in tension
     double m = 1.5;
     double rot0p = -mom2p/E3p + rot2p;
-    double nlrot = m*TnlstrainMax + (1.0-m)*TrotMax;
-    double dam = 1.0 - (fabs(rot0p)-fabs(nlrot))/(fabs(rot0p)-fabs(rot2p));
+    double nlrot = m*Tnlstrain + (1.0-m)*strain;
+    if (nlrot > CnlstrainMax) TnlstrainMax = nlrot;
+    double dam = 1.0 - (fabs(rot0p)-fabs(TnlstrainMax))/(fabs(rot0p)-fabs(rot2p));
     if (dam < 0.0)
       dam = 0.0;
     if (dam > 0.8)
