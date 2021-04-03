@@ -294,7 +294,7 @@ HystereticMaterial::setTrialStrain(double strain, double strainRate)
   }
 
   // time-integrate: (trial internal energy) = time integral of { (stress) * (strain rate) }
-  TenergyD = CenergyD + 0.5*(Cstress+Tstress)*dStrain;
+  TenergyD = CenergyD + 0.5*(Custress+Tustress)*dStrain;
 
   //  if (this->getTag() == 40)
   //    opserr << "setTrial: " << Tstrain << " " << Tutangent << " " << Tstress << endln;
