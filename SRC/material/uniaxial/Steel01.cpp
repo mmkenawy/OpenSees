@@ -443,7 +443,7 @@ int Steel01::commitState ()
 
    // State variables
    //by SAJalali
-   Energy += 0.5*(Tustress + Custress)*(Tstrain - Cstrain);
+   Energy += 0.5*(Tstress + Cstress)*(Tstrain - Cstrain);
 
    Cstrain = Tstrain;
    Cnlstrain = Tnlstrain;
