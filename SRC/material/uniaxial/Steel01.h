@@ -116,7 +116,8 @@ class Steel01 : public UniaxialMaterial
     double Cnlstrain;
     double Custress;
     double Cstress;
-    double Cdamage;
+    double Cpdamage;
+    double Cndamage;
     double Cutangent;
     double Ctangent;
 
@@ -132,7 +133,8 @@ class Steel01 : public UniaxialMaterial
     double Tnlstrain;
     double Tustress;
     double Tstress;
-    double Tdamage;
+    double Tpdamage;
+    double Tndamage;
     double Tutangent;
     double Ttangent; // Not really a state variable, but declared here
                      // for convenience
