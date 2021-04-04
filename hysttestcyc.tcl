@@ -148,7 +148,7 @@ set damage2 0.0;
 
 #uniaxialMaterial Hysteretic $matTag $s1p $e1p $s2p $e2p <$s3p $e3p> $s1n $e1n $s2n $e2n <$s3n $e3n> $pinchX $pinchY $damage1 $damage2 
 
-uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2n $ecs $s3n $e3n $pinchX $pinchY $damage1 $damage2;
+#uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2n $ecs $s3n $e3n $pinchX $pinchY $damage1 $damage2;
 #puts "uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2n $ecs $s3n $e3n $pinchX $pinchY $damage1 $damage2;"
 
 #uniaxialMaterial Steel02 $hystmatTag $Fy $Es $Bs $R0 $cR1 $cR2;
@@ -158,7 +158,8 @@ uniaxialMaterial Hysteretic $hystmatTag $Fy $ey $Fu $ets $s3p $e3p -$Fy -$ey $s2
 #uniaxialMaterial UniaxialJ2Plasticity $IDreinf $Es $Fy 0.0 $Hs;
 
 #uniaxialMaterial Steel02 $IDreinf $Fy $Es $Bs $R0 $cR1 $cR2;
-#uniaxialMaterial Steel01 $IDreinf $Fy $Es $Bs;
+uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs;
+puts "uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs"
 
 #uniaxialMaterial MinMax $IDsMinMax $IDreinf -min $ecs -max $ets
 	

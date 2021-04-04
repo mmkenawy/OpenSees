@@ -241,9 +241,9 @@ void Steel01::applyDamage (void)
    if (Tustress < 0.0) {
      // compute current damage in compression
      double m = 1.5;
-     double nlstrain = m*Tnlstrain + (1.0-m)*strain;
-     double rot0n = 1.0; // final strain at zero stress
-     double rot2n = 0.5; // strain at initial softening
+     double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
+     double rot0n = 0.03; // final strain at zero stress
+     double rot2n = 0.01; // strain at initial softening
      double dam = 1.0 - (fabs(rot0n)-fabs(nlstrain))/(fabs(rot0n)-fabs(rot2n));
      if (dam < 0.0)
        dam = 0.0;
@@ -256,9 +256,9 @@ void Steel01::applyDamage (void)
    } else {
      // compute current damage in tension
      double m = 1.5;
-     double nlstrain = m*Tnlstrain + (1.0-m)*strain;
-     double rot0p = 1.0; // final strain at zero stress
-     double rot2p = 0.5; // strain at initial softening
+     double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
+     double rot0p = 0.06; // final strain at zero stress
+     double rot2p = 0.03; // strain at initial softening
      double dam = 1.0 - (fabs(rot0p)-fabs(nlstrain))/(fabs(rot0p)-fabs(rot2p));
      if (dam < 0.0)
        dam = 0.0;
