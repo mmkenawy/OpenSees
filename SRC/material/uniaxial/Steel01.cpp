@@ -245,17 +245,17 @@ void Steel01::applyDamage (void)
   double m = 1.5; // (overly) non-local strain averaging parameter
   double maxpDamage = 0.8; // maximum allowable + damage value < 1.0
   double maxnDamage = 0.8; // maximum allowable - damage value < 1.0
-  double maxpStrain = 0.16; // + strain at which the material is fully damaged
-  double maxnStrain = 0.16; // - strain at which the material is fully damaged
-  double initpStrain = 0.04; // + strain at which damage initiates
-  double initnStrain = 0.04; // - strain at which damage initiates
+  double maxpStrain = 0.03; // + strain at which the material is fully damaged
+  double maxnStrain = 0.03; // - strain at which the material is fully damaged
+  double initpStrain = 0.01; // + strain at which damage initiates
+  double initnStrain = 0.01; // - strain at which damage initiates
     
   // pre-compute strain ranges over which damage is actively evolving
   double pRange = maxpStrain - initpStrain;
   double nRange = maxnStrain - initnStrain;
 
   // update the averaged (overly) non-local strain
-  double nlstrain = m*Tnlstrain + (1.0-m)*strain;
+  double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
 
   // check which damage value needs to be updated depending on the non-local strain
   if (nlstrain > 0.0) {
