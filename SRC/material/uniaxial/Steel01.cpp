@@ -245,8 +245,8 @@ void Steel01::applyDamage (void)
   double m = 1.5; // (overly) non-local strain averaging parameter
   double maxpDamage = 0.8; // maximum allowable + damage value < 1.0
   double maxnDamage = 0.8; // maximum allowable - damage value < 1.0
-  double maxpStrain = 0.16; // + strain at which the material is fully damaged
-  double maxnStrain = 0.16; // - strain at which the material is fully damaged
+  double maxpStrain = 0.08; // + strain at which the material is fully damaged
+  double maxnStrain = 0.08; // - strain at which the material is fully damaged
   double initpStrain = 0.04; // + strain at which damage initiates
   double initnStrain = 0.04; // - strain at which damage initiates
     
@@ -255,7 +255,7 @@ void Steel01::applyDamage (void)
   double nRange = maxnStrain - initnStrain;
 
   // update the averaged (overly) non-local strain
-  double nlstrain = m*Tnlstrain + (1.0-m)*strain;
+  double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
 
   // check which damage value needs to be updated depending on the non-local strain
   if (nlstrain > 0.0) {
@@ -263,7 +263,7 @@ void Steel01::applyDamage (void)
     Tpdamage = fmin(maxpDamage,fmax(Cpdamage,1.0-(maxpStrain-nlstrain)/pRange));
   } else {
     // update the damage parameter is compression
-    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain-nlstrain)/nRange));
+    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain+nlstrain)/nRange));
   }
 }
 
