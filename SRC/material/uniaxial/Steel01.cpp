@@ -263,7 +263,7 @@ void Steel01::applyDamage (void)
     Tpdamage = fmin(maxpDamage,fmax(Cpdamage,1.0-(maxpStrain-nlstrain)/pRange));
   } else {
     // update the damage parameter is compression
-    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain-nlstrain)/nRange));
+    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain+nlstrain)/nRange));
   }
 }
 
