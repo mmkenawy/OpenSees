@@ -184,7 +184,7 @@ int Steel01::setTrialStrain (double strain, double strainRate)
    Ttangent = Ctangent;
 
    // Update the damage parameters in both tension and compression
-   applyDamage();
+   //applyDamage();
 
    // Determine change in strain from last converged state
    double dStrain = strain - Cstrain;
@@ -219,7 +219,7 @@ int Steel01::setTrial (double strain, double &stress, double &tangent, double st
    Ttangent = Ctangent;
 
    // Update the damage parameters in both tension and compression
-   applyDamage();
+   //applyDamage();
 
    // Determine change in strain from last converged state
    double dStrain = strain - Cstrain;
@@ -301,13 +301,15 @@ void Steel01::determineTrialState (double dStrain)
 
       // compute the stress on the positive loading envelope,
       // scaled by the positive damage factor
-      double c1c3 = (1.0 - Tpdamage)*(c1 + c3);
+      double c1c3 = (c1 + c3);
 
       // check for loading on the positive envelope
-      if (c1c3 < c) {
+      if ((1.0 - Tpdamage)*c1c3 < c) {
+	// Actively update the damage parameters only when loading on the envelopes
+	applyDamage();
 	// if the trial stress exceeds the positive envelope stress
 	// project the stress back onto the positive envelope
-	Tstress = c1c3;
+	Tstress = (1.0 - Tpdamage)*c1c3;
 	// the material is loading along the positive envelope,
 	// use the hardening stiffness scaled by the positive damage factor
 	Ttangent = (1.0 - Tpdamage)*Esh;
@@ -322,13 +324,15 @@ void Steel01::determineTrialState (double dStrain)
 
       // compute the stress on the negative loading envelope,
       // scaled by the negative damage factor
-      double c1c2 = (1.0 - Tndamage)*(c1 - c2);
+      double c1c2 = (c1 - c2);
 
       // check for loading on the negative envelope
-      if (c1c2 > Tstress) {
+      if ((1.0 - Tndamage)*c1c2 > Tstress) {
+	// Actively update the damage parameters only when loading on the envelopes
+	applyDamage();
 	// if the trial stress is below the negative envelope stress
 	// project the stress back onto the negative envelope
-	Tstress = c1c2;
+	Tstress = (1.0 - Tndamage)*c1c2;
 	// the material is loading along the negative envelope,
 	// use the hardening stiffness scaled by the negative damage factor
 	Ttangent = (1.0 - Tndamage)*Esh;
