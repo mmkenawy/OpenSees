@@ -120,6 +120,7 @@
 #define MAT_TAG_NLConcretewTension	 446
 #define MAT_TAG_NLConcrete01         447
 #define MAT_TAG_Steel01				 5
+#define MAT_TAG_NLSteel01				501
 #define MAT_TAG_Hardening			 6
 #define MAT_TAG_Hysteretic			 7
 #define MAT_TAG_EPPGap				 8

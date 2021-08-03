@@ -89,6 +89,7 @@ extern void *OPS_CableMaterial(void);
 extern void *OPS_Bilin(void);
 extern void *OPS_Bilin02(void);
 extern void *OPS_Steel01(void);
+extern void *OPS_NLSteel01(void);
 extern void *OPS_FRPConfinedConcrete02(void);
 extern void *OPS_Steel02(void);
 extern void *OPS_Steel02Fatigue(void);
@@ -279,7 +280,14 @@ TclModelBuilderUniaxialMaterialCommand (ClientData clientData, Tcl_Interp *inter
 	theMaterial = (UniaxialMaterial *)theMat;
       else 
 	return TCL_ERROR;
+	}
+	else if (strcmp(argv[1],"NLSteel01") == 0) {
 
+	      void *theMat = OPS_NLSteel01();
+	      if (theMat != 0)
+		theMaterial = (UniaxialMaterial *)theMat;
+	      else
+		return TCL_ERROR;
     } else if (strcmp(argv[1],"Steel02") == 0) {
       void *theMat = OPS_Steel02();
       if (theMat != 0) 

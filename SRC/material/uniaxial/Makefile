@@ -126,6 +126,7 @@ OBJS       = UniaxialMaterial.o \
 	NLConcrete.o \
 	NLConcretewTension.o \
 	NLConcrete01.o \
+	NLSteel01.o \
         TclModelBuilderUniaxialMaterialCommand.o
 
 all:         $(OBJS)

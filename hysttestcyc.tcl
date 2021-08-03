@@ -158,8 +158,9 @@ set damage2 0.0;
 #uniaxialMaterial UniaxialJ2Plasticity $IDreinf $Es $Fy 0.0 $Hs;
 
 #uniaxialMaterial Steel02 $IDreinf $Fy $Es $Bs $R0 $cR1 $cR2;
-uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs;
-puts "uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs"
+#uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs;
+#puts "uniaxialMaterial Steel01 $hystmatTag $Fy $Es $Bs"
+uniaxialMaterial NLSteel01 $hystmatTag $Fy $Es $Bs $ets $ets $e3p $e3p 0.8 0.8;
 
 #uniaxialMaterial MinMax $IDsMinMax $IDreinf -min $ecs -max $ets
 	

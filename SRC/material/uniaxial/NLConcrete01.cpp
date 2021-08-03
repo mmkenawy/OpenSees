@@ -88,7 +88,7 @@ NLConcrete01::NLConcrete01
   :UniaxialMaterial(tag, MAT_TAG_NLConcrete01),
    fpc(FPC), epsc0(EPSC0), fpcu(FPCU), epscu(EPSCU), 
    CminStrain(0.0), CendStrain(0.0),
-   Cstrain(0.0), Cstress(0.0), Cnlstrain(0.0)
+   Cstrain(0.0), Cstress(0.0), Cnlstrain(0.0), Cdamage(0.0)
 {
 	EnergyP = 0;	//SAJalali
   // Make all concrete parameters negative
@@ -122,7 +122,7 @@ NLConcrete01::NLConcrete01
 NLConcrete01::NLConcrete01():UniaxialMaterial(0, MAT_TAG_NLConcrete01),
  fpc(0.0), epsc0(0.0), fpcu(0.0), epscu(0.0),
  CminStrain(0.0), CunloadSlope(0.0), CendStrain(0.0),
- Cstrain(0.0), Cstress(0.0), Cnlstrain(0.0)
+ Cstrain(0.0), Cstress(0.0), Cnlstrain(0.0), Cdamage(0.0)
 {
 	EnergyP = 0;	//SAJalali
   // Set trial values
@@ -155,6 +155,7 @@ int NLConcrete01::setTrialStrain (double strain, double strainRate)
    Tstress = Cstress;
    Ttangent = Ctangent;
    Tstrain = Cstrain;
+   Tdamage = Cdamage;
 
   // Determine change in strain from last converged state
   double dStrain = strain - Cstrain;
@@ -225,6 +226,7 @@ NLConcrete01::setTrial (double strain, double &stress, double &tangent, double s
    Tstress = Cstress;
    Ttangent = Ctangent;
    Tstrain = Cstrain;
+   Tdamage = Cdamage;
 
   // Determine change in strain from last converged state
   double dStrain = strain - Cstrain;
@@ -292,6 +294,7 @@ void NLConcrete01::determineTrialState (double dStrain)
   TminStrain = CminStrain;
   TendStrain = CendStrain;
   TunloadSlope = CunloadSlope;
+  Tdamage = Cdamage;
   
   double tempStress = Cstress + TunloadSlope*dStrain;
   
@@ -343,7 +346,7 @@ void NLConcrete01::reload ()
 
 void NLConcrete01::envelope ()
 {
-  double m = 1.5;
+  double m = 0.0;
   double Ec0 = 2.0*fpc/epsc0;
   double Ed = (fpcu - fpc)/(epscu - epsc0);
   double e0 = -fpc/Ed + epsc0;
@@ -353,7 +356,7 @@ void NLConcrete01::envelope ()
   double felas = 0.5*fpc;
   double eelas = felas/Ec0;
   double Eh = (fpc - felas)/(epsc0 - eelas);
-  double dam = 0.0;
+  //double dam = 0.0;
 
   if (Tstrain >= eelas)
   {
@@ -365,18 +368,19 @@ void NLConcrete01::envelope ()
       Ttangent = Eh;
   }
 
-  dam = 1 - (fabs(e0)-fabs(nlepsc))/(fabs(e0)-fabs(epsc0));
-  if (dam < 0.0)
-          dam = 0.0;
-  if (dam > 1.0)
-          dam = 1.0;
+  //Tdamage = fmin(1.0,fmax(Cdamage,1 - (fabs(e0)-fabs(nlepsc))/(fabs(e0)-fabs(epsc0))));
+  Tdamage = fmin(1.0,fmax(0.0,1 - (fabs(e0)-fabs(nlepsc))/(fabs(e0)-fabs(epsc0))));
+//  if (Tdamage < 0.0)
+//          Tdamage = 0.0;
+//  if (Tdamage > 1.0)
+//          Tdamage = 1.0;
 
-  Tstress = (1.0 - dam)*Tstresstmp;
-  if (dam > 0.0)
+  Tstress = (1.0 - Tdamage)*Tstresstmp;
+  if (Tdamage > 0.0)
           //Ttangent = Ed; %using the softening modulus sometimes causes convergence issues
   	  	  	Ttangent = Eh;
 
-    if (fabs(1.0 - dam) < DBL_EPSILON)
+    if (fabs(1.0 - Tdamage) < DBL_EPSILON)
         Ttangent = 1.0e-10;
 }
 
@@ -505,6 +509,7 @@ UniaxialMaterial* NLConcrete01::getCopy ()
    theCopy->Cstress = Cstress;
    theCopy->Ctangent = Ctangent;
    theCopy->Cnlstrain = Cnlstrain;
+   theCopy->Cdamage = Cdamage;
 
    return theCopy;
 }
@@ -512,7 +517,7 @@ UniaxialMaterial* NLConcrete01::getCopy ()
 int NLConcrete01::sendSelf (int commitTag, Channel& theChannel)
 {
    int res = 0;
-   static Vector data(12);
+   static Vector data(13);
    data(0) = this->getTag();
 
    // Material properties
@@ -531,6 +536,7 @@ int NLConcrete01::sendSelf (int commitTag, Channel& theChannel)
    data(9) = Cstress;
    data(10) = Ctangent;
    data(11) = Cnlstrain;
+   data(12) = Cdamage;
 
    // Data is only sent after convergence, so no trial variables
    // need to be sent through data vector
@@ -546,7 +552,7 @@ int NLConcrete01::recvSelf (int commitTag, Channel& theChannel,
                                  FEM_ObjectBroker& theBroker)
 {
    int res = 0;
-   static Vector data(12);
+   static Vector data(13);
    res = theChannel.recvVector(this->getDbTag(), commitTag, data);
 
    if (res < 0) {
@@ -572,12 +578,14 @@ int NLConcrete01::recvSelf (int commitTag, Channel& theChannel,
       Cstress = data(9);
       Ctangent = data(10);
       Cnlstrain = data(11);
+      Cdamage = data(12);
 
       // Set trial state variables
       Tstrain = Cstrain;
       Tstress = Cstress;
       Ttangent = Ctangent;
       Tnlstrain = Cnlstrain;
+      Tdamage = Cdamage;
    }
 
    return res;

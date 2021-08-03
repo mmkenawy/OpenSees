@@ -698,6 +698,7 @@ MATERIAL_LIBS   =  $(FE)/material/Material.o \
 	$(FE)/material/uniaxial/CubicSpline.o \
 	$(FE)/material/uniaxial/c14-SK-M.o \
 	$(FE)/material/uniaxial/Steel01.o \
+	$(FE)/material/uniaxial/NLSteel01.o \
 	$(FE)/material/uniaxial/SteelMPF.o \
 	$(FE)/material/uniaxial/ConcreteCM.o \
 	$(FE)/material/uniaxial/RambergOsgoodSteel.o \

@@ -99,6 +99,7 @@ class NLConcrete01 : public UniaxialMaterial
   double Ctangent;	// Don't need Ctangent other than for revert and sendSelf/recvSelf
   // Storing it is better than recomputing it!!!
   double Cnlstrain;
+  double Cdamage;
   
   /*** TRIAL History Variables ***/
   double TminStrain;
@@ -111,6 +112,7 @@ class NLConcrete01 : public UniaxialMaterial
   double Ttangent; // Not really a state variable, but declared here
   // for convenience
   double Tnlstrain;
+  double Tdamage;
   
   void determineTrialState (double dStrain);
   
