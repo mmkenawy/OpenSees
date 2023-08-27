@@ -100,53 +100,27 @@ class Steel01 : public UniaxialMaterial
     double a2;
     double a3;
     double a4;  // a1 through a4 are coefficients for isotropic hardening
-    
-    /*** CONVERGED History Variables ***/
-    double CminStrain;  // Minimum strain in compression
-    double CmaxStrain;  // Maximum strain in tension
-    double CshiftP;     // Shift in hysteresis loop for positive loading
-    double CshiftN;     // Shift in hysteresis loop for negative loading
-    int Cloading;       // Flag for loading/unloading
-                        // 1 = loading (positive strain increment)
-                        // -1 = unloading (negative strain increment)
-                        // 0 initially
 
-    /*** CONVERGED State Variables ***/    
-    double Cstrain;
-    double Cnlstrain;
-    double Custress;
-    double Cstress;
-    double Cpdamage;
-    double Cndamage;
-    double Cutangent;
-    double Ctangent;
-
-    /*** TRIAL History Variables ***/
-    double TminStrain;
-    double TmaxStrain;
-    double TshiftP;
-    double TshiftN;
-    int Tloading;
+    /*** CONVERGED State Variables ***/
+    double Cstrain;   // strain
+    double Cnlstrain; // non-local strain
+    double Cstress;   // stress
+    double Ctangent;  // material stiffness (tangent)
+    double Cpstrain;  // total plastic strain
+    double Ceps;      // equivalent plastic strain
+    double Cdamage;   // damage variable controlling compressive softening
     
     /*** TRIAL State Variables ***/
-    double Tstrain;
-    double Tnlstrain;
-    double Tustress;
-    double Tstress;
-    double Tpdamage;
-    double Tndamage;
-    double Tutangent;
-    double Ttangent; // Not really a state variable, but declared here
-                     // for convenience
+    double Tstrain;   // strain
+    double Tnlstrain; // non-local strain
+    double Tstress;   // stress
+    double Ttangent;  // material stiffness (tangent)
+    double Tpstrain;  // total plastic strain
+    double Teps;      // equivalent plastic strain
+    double Tdamage;   // damage variable controlling compressive softening
 
     // Calculates the trial state variables based on the trial strain
-    void determineTrialState (double dStrain);
-
-    // Apply damage to the current stress state
-    void applyDamage (void);
-
-    // Determines if a load reversal has occurred based on the trial strain
-    void detectLoadReversal (double dStrain);
+    void determineTrialState ();
 
 // AddingSensitivity:BEGIN //////////////////////////////////////////
     int parameterID;

@@ -108,37 +108,23 @@ Steel01::Steel01
    // Sets all history and state variables to initial values
    // History variables
 	Energy = 0;	//by SAJalali
-	
-   CminStrain = 0.0;
-   CmaxStrain = 0.0;
-   CshiftP = 1.0;
-   CshiftN = 1.0;
-   Cloading = 0;
-
-   TminStrain = 0.0;
-   TmaxStrain = 0.0;
-   TshiftP = 1.0;
-   TshiftN = 1.0;
-   Tloading = 0;
 
    // State variables
-   Cstrain = 0.0;
-   Cnlstrain = 0.0;
-   Custress = 0.0;
-   Cstress = 0.0;
-   Cpdamage = 0.0;
-   Cndamage = 0.0;
-   Cutangent = E0;
-   Ctangent = E0;
+   Cstrain   = 0.0; // strain
+   Cnlstrain = 0.0; // non-local strain
+   Cstress   = 0.0; // stress
+   Ctangent  =  E0; // material stiffness (tangent)
+   Cpstrain  = 0.0; // total plastic strain
+   Ceps      = 0.0; // equivalent plastic strain
+   Cdamage   = 0.0; // damage variable controlling compressive softening     
 
-   Tstrain = 0.0;
-   Tnlstrain = 0.0;
-   Tustress = 0.0;
-   Tstress = 0.0;
-   Tpdamage = 0.0;
-   Tndamage = 0.0;
-   Tutangent = E0;
-   Ttangent = E0;
+   Tstrain   = 0.0; // strain
+   Tnlstrain = 0.0; // non-local strain
+   Tstress   = 0.0; // stress
+   Ttangent  =  E0; // material stiffness (tangent)
+   Tpstrain  = 0.0; // total plastic strain
+   Teps      = 0.0; // equivalent plastic strain
+   Tdamage   = 0.0; // damage variable controlling compressive softening
 
 // AddingSensitivity:BEGIN /////////////////////////////////////
 	parameterID = 0;
@@ -169,34 +155,19 @@ Steel01::~Steel01 ()
 int Steel01::setTrialStrain (double strain, double strainRate)
 {
    // Reset history variables to last converged state
-   TminStrain = CminStrain;
-   TmaxStrain = CmaxStrain;
-   TshiftP = CshiftP;
-   TshiftN = CshiftN;
-   Tloading = Cloading;
-   Tstrain = Cstrain;
-   //Tnlstrain = Cnlstrain; // this is updated in setNLStrain
-   Tustress = Custress;
-   Tstress = Cstress;
-   Tpdamage = Cpdamage;
-   Tndamage = Cndamage;
-   Tutangent = Cutangent;
-   Ttangent = Ctangent;
+   Tstrain   = Cstrain;   // strain
+   //Tnlstrain = Cnlstrain; // non-local strain (this is updated in setNLStrain)
+   Tstress   = Cstress;   // stress
+   Ttangent  = Ctangent;  // material stiffness (tangent)
+   Tpstrain  = Cpstrain;  // total plastic strain
+   Teps      = Ceps;      // equivalent plastic strain
+   Tdamage   = Cdamage;   // damage variable controlling compressive softening
 
-   // Update the damage parameters in both tension and compression
-   //applyDamage();
+   // Set trial strain
+   Tstrain = strain;
 
-   // Determine change in strain from last converged state
-   double dStrain = strain - Cstrain;
-
-   if (fabs(dStrain) > DBL_EPSILON) {
-     // Set trial strain
-     Tstrain = strain;
-
-     // Calculate the trial state given the trial strain
-     determineTrialState (dStrain);
-
-   }
+   // Calculate the trial state given the trial strain
+   determineTrialState ();
 
    return 0;
 }
@@ -204,215 +175,101 @@ int Steel01::setTrialStrain (double strain, double strainRate)
 int Steel01::setTrial (double strain, double &stress, double &tangent, double strainRate)
 {
    // Reset history variables to last converged state
-   TminStrain = CminStrain;
-   TmaxStrain = CmaxStrain;
-   TshiftP = CshiftP;
-   TshiftN = CshiftN;
-   Tloading = Cloading;
-   Tstrain = Cstrain;
-   //Tnlstrain = Cnlstrain; // this is updated in setNLStrain
-   Tustress = Custress;
-   Tstress = Cstress;
-   Tpdamage = Cpdamage;
-   Tndamage = Cndamage;
-   Tutangent = Cutangent;
-   Ttangent = Ctangent;
+   Tstrain   = Cstrain;   // strain
+   //Tnlstrain = Cnlstrain; // non-local strain (this is updated in setNLStrain)
+   Tstress   = Cstress;   // stress
+   Ttangent  = Ctangent;  // material stiffness (tangent)
+   Tpstrain  = Cpstrain;  // total plastic strain
+   Teps      = Ceps;      // equivalent plastic strain
+   Tdamage   = Cdamage;   // damage variable controlling compressive softening
 
-   // Update the damage parameters in both tension and compression
-   //applyDamage();
+   // Set trial strain
+   Tstrain = strain;
 
-   // Determine change in strain from last converged state
-   double dStrain = strain - Cstrain;
+   // Calculate the trial state given the trial strain
+   determineTrialState ();
 
-   if (fabs(dStrain) > DBL_EPSILON) {
-     // Set trial strain
-     Tstrain = strain;
-
-     // Calculate the trial state given the trial strain
-     determineTrialState (dStrain);
-
-   }
-
-   stress = Tstress;
+   stress  = Tstress;
    tangent = Ttangent;
 
    return 0;
 }
 
-void Steel01::applyDamage (void)
-{
-  // hard-coded damage parameters for non-local degradation of the yield stress
-  double m = 1.5; // (overly) non-local strain averaging parameter
-  double maxpDamage = 0.8; // maximum allowable + damage value < 1.0
-  double maxnDamage = 0.8; // maximum allowable - damage value < 1.0
-  double maxpStrain = 0.03; // + strain at which the material is fully damaged
-  double maxnStrain = 0.03; // - strain at which the material is fully damaged
-  double initpStrain = 0.01; // + strain at which damage initiates
-  double initnStrain = 0.01; // - strain at which damage initiates
-    
-  // pre-compute strain ranges over which damage is actively evolving
-  double pRange = maxpStrain - initpStrain;
-  double nRange = maxnStrain - initnStrain;
+//void Steel01::applyDamage (void)
+//{
+//  // hard-coded damage parameters for non-local degradation of the yield stress
+//  double m = 1.5; // (overly) non-local strain averaging parameter
+//  double maxpDamage = 0.8; // maximum allowable + damage value < 1.0
+//  double maxnDamage = 0.8; // maximum allowable - damage value < 1.0
+//  double maxpStrain = 0.03; // + strain at which the material is fully damaged
+//  double maxnStrain = 0.03; // - strain at which the material is fully damaged
+//  double initpStrain = 0.01; // + strain at which damage initiates
+//  double initnStrain = 0.01; // - strain at which damage initiates
+//    
+//  // pre-compute strain ranges over which damage is actively evolving
+//  double pRange = maxpStrain - initpStrain;
+//  double nRange = maxnStrain - initnStrain;
+//
+//  // update the averaged (overly) non-local strain
+//  double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
+//
+//  // check which damage value needs to be updated depending on the non-local strain
+//  if (nlstrain > 0.0) {
+//    // update the damage parameter is tension
+//    Tpdamage = fmin(maxpDamage,fmax(Cpdamage,1.0-(maxpStrain-nlstrain)/pRange));
+//  } else {
+//    // update the damage parameter is compression
+//    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain+nlstrain)/nRange));
+//  }
+//}
 
+void Steel01::determineTrialState ()
+{
+  // hard-coded damage parameters
+  double m          = 1.5;  // (overly) non-local strain averaging parameter
+  double initStrain = 0.01; // (compressive) strain at which damage initiates
+  double maxStrain  = 0.03; // (compressive) strain at which material is fully damaged
+  double maxDamage  = 0.8;  // maximum (compressive) damage
+  
   // update the averaged (overly) non-local strain
   double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
+  
+  // update the damage based on the non-local strain
+  Tdamage = min(max(Cdamage,tanh(-(nlstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
 
-  // check which damage value needs to be updated depending on the non-local strain
-  if (nlstrain > 0.0) {
-    // update the damage parameter is tension
-    Tpdamage = fmin(maxpDamage,fmax(Cpdamage,1.0-(maxpStrain-nlstrain)/pRange));
-  } else {
-    // update the damage parameter is compression
-    Tndamage = fmin(maxnDamage,fmax(Cndamage,1.0-(maxnStrain+nlstrain)/nRange));
+  // compute the non-local buckling strain
+  double bstrain = Tdamage*min(nlstrain - Cpstrain,0.0);
+
+  // compute the trial stress
+  Tstress = E0*(Tstrain - Cpstrain - bstrain);
+
+  // check for violation of the yield constrain
+  double phi = abs(Tstress) - (fy + b*E0*Ceps);
+  if (phi > 0.0) {
+    // update the yield strain:
+
+    // compute the loading direction
+    double ny = sign(Tstress);
+
+    // compute the plastic strain increment
+    double dep;
+    if (Tnlstrain < Cpstrain) {
+      dep = phi/((1.0-Tdamage)*E0*ny+b*E0);
+    } else {
+      dep = phi/(E0*ny+b*E0);
+    }
+
+    // update the total and equivalent plastic strains
+    Tpstrain = Cpstrain +     dep;
+    Teps     = Ceps     + abs(dep);
+
+    // update the buckling strain
+    bstrain = Tdamage*min(nlstrain - Tpstrain,0.0);
+
+    // update the stress
+    Tstress = E0*(Tstrain - Tpstrain - bstrain);
   }
-}
-
-void Steel01::determineTrialState (double dStrain)
-{
-      // compute the initial envelope stress intercept at zero strain;
-      double fyOneMinusB = fy * (1.0 - b);
-
-      // compute the hardening modulus: scale the initial elastic modulus
-      // by the reduction factor b = Esh/E0 < 1.0
-      double Esh = b*E0;
-
-      // compute the strain at first yielding
-      double epsy = fy/E0;
-
-      // compute the unshifted stress on the envelope
-      double c1 = Esh*Tstrain;
-
-      // compute the positive envelope stress intercept at zero strain
-      double c2 = TshiftN*fyOneMinusB;
-
-      // compute the negative envelope stress intercept at zero strain
-      double c3 = TshiftP*fyOneMinusB;
-
-      // compute the trial elastic stress
-      double c = Cstress + E0*dStrain;
-
-      /**********************************************************
-         removal of the following lines due to problems with
-	 optimization may be required (e.g. on gnucc compiler
-         with optimization turned on & -ffloat-store option not
-         used) .. replace them with line that follows but which 
-         now requires 2 function calls to achieve same result !!
-      ************************************************************/
-
-      // compute the stress on the positive loading envelope,
-      // scaled by the positive damage factor
-      double c1c3 = (c1 + c3);
-
-      // check for loading on the positive envelope
-      if ((1.0 - Tpdamage)*c1c3 < c) {
-	// Actively update the damage parameters only when loading on the envelopes
-	applyDamage();
-	// if the trial stress exceeds the positive envelope stress
-	// project the stress back onto the positive envelope
-	Tstress = (1.0 - Tpdamage)*c1c3;
-	// the material is loading along the positive envelope,
-	// use the hardening stiffness scaled by the positive damage factor
-	Ttangent = (1.0 - Tpdamage)*Esh;
-      } else {
-	// otherwise, assume the trial stress is elastic
-	// (will check for loading on negative envelope later on...)
-	Tstress = c;
-	// if the computed stress is the same as the trial (elastic) stress,
-	// use the elastic stiffness
-	Ttangent = E0;
-      }
-
-      // compute the stress on the negative loading envelope,
-      // scaled by the negative damage factor
-      double c1c2 = (c1 - c2);
-
-      // check for loading on the negative envelope
-      if ((1.0 - Tndamage)*c1c2 > Tstress) {
-	// Actively update the damage parameters only when loading on the envelopes
-	applyDamage();
-	// if the trial stress is below the negative envelope stress
-	// project the stress back onto the negative envelope
-	Tstress = (1.0 - Tndamage)*c1c2;
-	// the material is loading along the negative envelope,
-	// use the hardening stiffness scaled by the negative damage factor
-	Ttangent = (1.0 - Tndamage)*Esh;
-      }
-
-      /* ***********************************************************
-      and replace them with:
-
-      Tustress = fmax((c1-c2), fmin((c1+c3),c));
-      **************************************************************/
-
-      //
-      // Determine if a load reversal has occurred due to the trial strain
-      //
-
-      // Determine initial loading condition
-      if (Tloading == 0 && dStrain != 0.0) {
-	  if (dStrain > 0.0)
-	    Tloading = 1;
-	  else
-	    Tloading = -1;
-      }
-
-      // Transition from loading to unloading, i.e. positive strain increment
-      // to negative strain increment
-      if (Tloading == 1 && dStrain < 0.0) {
-	  Tloading = -1;
-	  // set the new maximum strain achieved by the material
-	  if (Cstrain > TmaxStrain) {
-	    TmaxStrain = Cstrain;
-	  }
-	  // grow the negative envelope due to hardening effects
-	  TshiftN = 1 + a1*pow((TmaxStrain-TminStrain)/(2.0*a2*epsy),0.8);
-      }
-
-      // Transition from unloading to loading, i.e. negative strain increment
-      // to positive strain increment
-      if (Tloading == -1 && dStrain > 0.0) {
-	  Tloading = 1;
-	  // set the new minimum strain achieved by the material
-	  if (Cstrain < TminStrain) {
-	    TminStrain = Cstrain;
-	  }
-	  // grow the positive envelope due to hardening effects
-	  TshiftP = 1 + a3*pow((TmaxStrain-TminStrain)/(2.0*a4*epsy),0.8);
-      }
-}
-
-void Steel01::detectLoadReversal (double dStrain)
-{
-   // Determine initial loading condition
-   if (Tloading == 0 && dStrain != 0.0)
-   {
-      if (dStrain > 0.0)
-         Tloading = 1;
-      else
-         Tloading = -1;
-   }
-
-   double epsy = fy/E0;
-
-   // Transition from loading to unloading, i.e. positive strain increment
-   // to negative strain increment
-   if (Tloading == 1 && dStrain < 0.0)
-   {
-      Tloading = -1;
-      if (Cstrain > TmaxStrain)
-         TmaxStrain = Cstrain;
-      TshiftN = 1 + a1*pow((TmaxStrain-TminStrain)/(2.0*a2*epsy),0.8);
-   }
-
-   // Transition from unloading to loading, i.e. negative strain increment
-   // to positive strain increment
-   if (Tloading == -1 && dStrain > 0.0)
-   {
-      Tloading = 1;
-      if (Cstrain < TminStrain)
-         TminStrain = Cstrain;
-      TshiftP = 1 + a3*pow((TmaxStrain-TminStrain)/(2.0*a4*epsy),0.8);
-   }
+  
 }
 
 int Steel01::setNLStrain(double nlstrain)
@@ -438,84 +295,53 @@ double Steel01::getTangent ()
 
 int Steel01::commitState ()
 {
-   // History variables
-   CminStrain = TminStrain;
-   CmaxStrain = TmaxStrain;
-   CshiftP = TshiftP;
-   CshiftN = TshiftN;
-   Cloading = Tloading;
-
    // State variables
    //by SAJalali
    Energy += 0.5*(Tstress + Cstress)*(Tstrain - Cstrain);
 
-   Cstrain = Tstrain;
-   Cnlstrain = Tnlstrain;
-   Cstress = Tstress;
-   Custress = Tustress;
-   Cpdamage = Tpdamage;
-   Cndamage = Tndamage;
-   Cutangent = Tutangent;
-   Ctangent = Ttangent;
+   Cstrain   = Tstrain;   // strain
+   Cnlstrain = Tnlstrain; // non-local strain
+   Cstress   = Tstress;   // stress
+   Ctangent  = Ttangent;  // material stiffness (tangent)
+   Cpstrain  = Tpstrain;  // total plastic strain
+   Ceps      = Teps;      // equivalent plastic strain
+   Cdamage   = Tdamage;   // damage variable controlling compressive softening
 
    return 0;
 }
 
 int Steel01::revertToLastCommit ()
 {
-   // Reset trial history variables to last committed state
-   TminStrain = CminStrain;
-   TmaxStrain = CmaxStrain;
-   TshiftP = CshiftP;
-   TshiftN = CshiftN;
-   Tloading = Cloading;
-
    // Reset trial state variables to last committed state
-   Tstrain = Cstrain;
-   Tnlstrain = Cnlstrain;
-   Tstress = Cstress;
-   Tustress = Custress;
-   Tpdamage = Cpdamage;
-   Tndamage = Cndamage;
-   Tutangent = Cutangent;
-   Ttangent = Ctangent;
+   Tstrain   = Cstrain;   // strain
+   Tnlstrain = Cnlstrain; // non-local strain
+   Tstress   = Cstress;   // stress
+   Ttangent  = Ctangent;  // material stiffness (tangent)
+   Tpstrain  = Cpstrain;  // total plastic strain
+   Teps      = Ceps;      // equivalent plastic strain
+   Tdamage   = Cdamage;   // damage variable controlling compressive softening
 
    return 0;
 }
 
 int Steel01::revertToStart ()
 {
-   // History variables
-   CminStrain = 0.0;
-   CmaxStrain = 0.0;
-   CshiftP = 1.0;
-   CshiftN = 1.0;
-   Cloading = 0;
-
-   TminStrain = 0.0;
-   TmaxStrain = 0.0;
-   TshiftP = 1.0;
-   TshiftN = 1.0;
-   Tloading = 0;
-
    // State variables
-   Cstrain = 0.0;
-   Cnlstrain = 0.0;
-   Cstress = 0.0;
-   Custress = 0.0;
-   Cpdamage = 0.0;
-   Cndamage = 0.0;
-   Cutangent = E0;
-   Ctangent = E0;
+   Cstrain   = 0.0; // strain
+   Cnlstrain = 0.0; // non-local strain
+   Cstress   = 0.0; // stress
+   Ctangent  =  E0; // material stiffness (tangent)
+   Cpstrain  = 0.0; // total plastic strain
+   Ceps      = 0.0; // equivalent plastic strain
+   Cdamage   = 0.0; // damage variable controlling compressive softening     
 
-   Tstrain = 0.0;
-   Tnlstrain = 0.0;
-   Tstress = 0.0;
-   Tustress = 0.0;
-   Tpdamage = 0.0;
-   Tndamage = 0.0;
-   Tutangent = E0;
-   Ttangent = E0;
+   Tstrain   = 0.0; // strain
+   Tnlstrain = 0.0; // non-local strain
+   Tstress   = 0.0; // stress
+   Ttangent  =  E0; // material stiffness (tangent)
+   Tpstrain  = 0.0; // total plastic strain
+   Teps      = 0.0; // equivalent plastic strain
+   Tdamage   = 0.0; // damage variable controlling compressive softening
 
 // AddingSensitivity:BEGIN /////////////////////////////////
 	if (SHVs != 0) 
@@ -530,39 +356,23 @@ UniaxialMaterial* Steel01::getCopy ()
    Steel01* theCopy = new Steel01(this->getTag(), fy, E0, b,
 				  a1, a2, a3, a4);
 
-   // Converged history variables
-   theCopy->CminStrain = CminStrain;
-   theCopy->CmaxStrain = CmaxStrain;
-   theCopy->CshiftP = CshiftP;
-   theCopy->CshiftN = CshiftN;
-   theCopy->Cloading = Cloading;
-
-   // Trial history variables
-   theCopy->TminStrain = TminStrain;
-   theCopy->TmaxStrain = TmaxStrain;
-   theCopy->TshiftP = TshiftP;
-   theCopy->TshiftN = TshiftN;
-   theCopy->Tloading = Tloading;
-
    // Converged state variables
-   theCopy->Cstrain = Cstrain;
-   theCopy->Cnlstrain = Cnlstrain;
-   theCopy->Cstress = Cstress;
-   theCopy->Custress = Custress;
-   theCopy->Cpdamage = Cpdamage;
-   theCopy->Cndamage = Cndamage;
-   theCopy->Cutangent = Cutangent;
-   theCopy->Ctangent = Ctangent;
+   theCopy->Cstrain   = Cstrain;   // strain
+   theCopy->Cnlstrain = Cnlstrain; // non-local strain
+   theCopy->Cstress   = Cstress;   // stress
+   theCopy->Ctangent  = Ctangent;  // material stiffness (tangent)
+   theCopy->Cpstrain  = Cpstrain;  // total plastic strain
+   theCopy->Ceps      = Ceps;      // equivalent plastic strain
+   theCopy->Cdamage   = Cdamage;   // damage variable controlling compressive softening
 
    // Trial state variables
-   theCopy->Tstrain = Tstrain;
-   theCopy->Tnlstrain = Tnlstrain;
-   theCopy->Tstress = Tstress;
-   theCopy->Tustress = Tustress;
-   theCopy->Tpdamage = Tpdamage;
-   theCopy->Tndamage = Tndamage;
-   theCopy->Tutangent = Tutangent;
-   theCopy->Ttangent = Ttangent;
+   theCopy->Tstrain   = Tstrain;   // strain
+   theCopy->Tnlstrain = Tnlstrain; // non-local strain
+   theCopy->Tstress   = Tstress;   // stress
+   theCopy->Ttangent  = Ttangent;  // material stiffness (tangent)
+   theCopy->Tpstrain  = Tpstrain;  // total plastic strain
+   theCopy->Teps      = Teps;      // equivalent plastic strain
+   theCopy->Tdamage   = Tdamage;   // damage variable controlling compressive softening
 
    return theCopy;
 }
@@ -570,7 +380,7 @@ UniaxialMaterial* Steel01::getCopy ()
 int Steel01::sendSelf (int commitTag, Channel& theChannel)
 {
    int res = 0;
-   static Vector data(21);
+   static Vector data(14);
    data(0) = this->getTag();
 
    // Material properties
@@ -582,22 +392,14 @@ int Steel01::sendSelf (int commitTag, Channel& theChannel)
    data(6) = a3;
    data(7) = a4;
 
-   // History variables from last converged state
-   data(8) = CminStrain;
-   data(9) = CmaxStrain;
-   data(10) = CshiftP;
-   data(11) = CshiftN;
-   data(12) = Cloading;
-
    // State variables from last converged state
-   data(13) = Cstrain;
-   data(14) = Cnlstrain;
-   data(15) = Cstress;
-   data(16) = Custress;
-   data(17) = Cpdamage;
-   data(18) = Cndamage;
-   data(19) = Cutangent;
-   data(20) = Ctangent;
+   data( 8) = Cstrain  ; // strain
+   data( 9) = Cnlstrain; // non-local strain
+   data(10) = Cstress  ; // stress
+   data(11) = Ctangent ; // material stiffness (tangent)
+   data(12) = Cpstrain ; // total plastic strain
+   data(13) = Ceps     ; // equivalent plastic strain
+   data(14) = Cdamage  ; // damage variable controlling compressive softening  
 
    // Data is only sent after convergence, so no trial variables
    // need to be sent through data vector
@@ -613,7 +415,7 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
                                 FEM_ObjectBroker& theBroker)
 {
    int res = 0;
-   static Vector data(21);
+   static Vector data(14);
    res = theChannel.recvVector(this->getDbTag(), commitTag, data);
   
    if (res < 0) {
@@ -626,46 +428,29 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
       // Material properties
       fy = data(1);
       E0 = data(2);
-      b = data(3);
+      b  = data(3);
       a1 = data(4);
       a2 = data(5);
       a3 = data(6);
       a4 = data(7);
 
-      // History variables from last converged state
-      CminStrain = data(8);
-      CmaxStrain = data(9);
-      CshiftP = data(10);
-      CshiftN = data(11);
-      Cloading = int(data(12));
-
-      // Copy converged history values into trial values since data is only
-      // sent (received) after convergence
-      TminStrain = CminStrain;
-      TmaxStrain = CmaxStrain;
-      TshiftP = CshiftP;
-      TshiftN = CshiftN;
-      Tloading = Cloading;
-
       // State variables from last converged state
-      Cstrain = data(13);
-      Cnlstrain = data(14);
-      Cstress = data(15);
-      Custress = data(16);
-      Cpdamage = data(17);
-      Cndamage = data(18);
-      Cutangent = data(19);
-      Ctangent = data(20);      
+      Cstrain   = data( 8); // strain
+      Cnlstrain = data( 9); // non-local strain
+      Cstress   = data(10); // stress
+      Ctangent  = data(11); // material stiffness (tangent)
+      Cpstrain  = data(12); // total plastic strain
+      Ceps      = data(13); // equivalent plastic strain
+      Cdamage   = data(14); // damage variable controlling compressive softening     
 
       // Copy converged state values into trial values
-      Tstrain = Cstrain;
-      Tnlstrain = Cnlstrain;
-      Tstress = Cstress;
-      Tustress = Custress;
-      Tpdamage = Cpdamage;
-      Tndamage = Cndamage;
-      Tutangent = Cutangent;
-      Ttangent = Ctangent;
+      Tstrain   = Cstrain;   // strain
+      Tnlstrain = Cnlstrain; // non-local strain
+      Tstress   = Cstress;   // stress
+      Ttangent  = Ctangent;  // material stiffness (tangent)
+      Tpstrain  = Cpstrain;  // total plastic strain
+      Teps      = Ceps;      // equivalent plastic strain
+      Tdamage   = Cdamage;   // damage variable controlling compressive softening
    }
     
    return res;
@@ -706,37 +491,7 @@ void Steel01::Print (OPS_Stream& s, int flag)
 int
 Steel01::setParameter(const char **argv, int argc, Parameter &param)
 {
-
-  if (strcmp(argv[0],"sigmaY") == 0 || strcmp(argv[0],"fy") == 0 || strcmp(argv[0],"Fy") == 0) {
-    param.setValue(fy);
-    return param.addObject(1, this);
-  }
-  if (strcmp(argv[0],"E") == 0) {
-    param.setValue(E0);
-    return param.addObject(2, this);
-  }
-  if (strcmp(argv[0],"b") == 0) {
-    param.setValue(b);
-    return param.addObject(3, this);
-  }
-  if (strcmp(argv[0],"a1") == 0) {
-    param.setValue(a1);
-    return param.addObject(4, this);
-  }
-  if (strcmp(argv[0],"a2") == 0) {
-    param.setValue(a2);
-    return param.addObject(5, this);
-  }
-  if (strcmp(argv[0],"a3") == 0) {
-    param.setValue(a3);
-    return param.addObject(6, this);
-  }
-  if (strcmp(argv[0],"a4") == 0) {
-    param.setValue(a4);
-    return param.addObject(7, this);
-  }
-
-  return -1;
+        return 0;
 }
 
 
@@ -744,36 +499,6 @@ Steel01::setParameter(const char **argv, int argc, Parameter &param)
 int
 Steel01::updateParameter(int parameterID, Information &info)
 {
-	switch (parameterID) {
-	case -1:
-		return -1;
-	case 1:
-		this->fy = info.theDouble;
-		break;
-	case 2:
-		this->E0 = info.theDouble;
-		break;
-	case 3:
-		this->b = info.theDouble;
-		break;
-	case 4:
-		this->a1 = info.theDouble;
-		break;
-	case 5:
-		this->a2 = info.theDouble;
-		break;
-	case 6:
-		this->a3 = info.theDouble;
-		break;
-	case 7:
-		this->a4 = info.theDouble;
-		break;
-	default:
-		return -1;
-	}
-
-	Tutangent = E0;          // Initial stiffness
-
 	return 0;
 }
 
@@ -783,8 +508,6 @@ Steel01::updateParameter(int parameterID, Information &info)
 int
 Steel01::activateParameter(int passedParameterID)
 {
-	parameterID = passedParameterID;
-
 	return 0;
 }
 
@@ -793,67 +516,7 @@ Steel01::activateParameter(int passedParameterID)
 double
 Steel01::getStressSensitivity(int gradIndex, bool conditional)
 {
-	// Initialize return value
-	double gradient = 0.0;
-
-
-	// Pick up sensitivity history variables
-	double CstrainSensitivity = 0.0;
-	double CstressSensitivity = 0.0;
-	if (SHVs != 0) {
-		CstrainSensitivity = (*SHVs)(0,gradIndex);
-		CstressSensitivity = (*SHVs)(1,gradIndex);
-	}
-
-
-	// Assign values to parameter derivatives (depending on what's random)
-	double fySensitivity = 0.0;
-	double E0Sensitivity = 0.0;
-	double bSensitivity = 0.0;
-	if (parameterID == 1) {
-		fySensitivity = 1.0;
-	}
-	else if (parameterID == 2) {
-		E0Sensitivity = 1.0;
-	}
-	else if (parameterID == 3) {
-		bSensitivity = 1.0;
-	}
-
-
-	// Compute min and max stress
-	double Tstress;
-	double dStrain = Tstrain-Cstrain;
-	double sigmaElastic = Cstress + E0*dStrain;
-	double fyOneMinusB = fy * (1.0 - b);
-	double Esh = b*E0;
-	double c1 = Esh*Tstrain;
-	double c2 = TshiftN*fyOneMinusB;
-	double c3 = TshiftP*fyOneMinusB;
-	double sigmaMax = c1+c3;
-	double sigmaMin = c1-c2;
-
-
-	// Evaluate stress sensitivity 
-	if ( (sigmaMax < sigmaElastic) && (fabs(sigmaMax-sigmaElastic)>1e-5) ) {
-		Tstress = sigmaMax;
-		gradient = E0Sensitivity*b*Tstrain 
-				 + E0*bSensitivity*Tstrain
-				 + TshiftP*(fySensitivity*(1-b)-fy*bSensitivity);
-	}
-	else {
-		Tstress = sigmaElastic;
-		gradient = CstressSensitivity 
-			     + E0Sensitivity*(Tstrain-Cstrain)
-				 - E0*CstrainSensitivity;
-	}
-	if (sigmaMin > Tstress) {
-		gradient = E0Sensitivity*b*Tstrain
-			     + E0*bSensitivity*Tstrain
-				 - TshiftN*(fySensitivity*(1-b)-fy*bSensitivity);
-	}
-
-	return gradient;
+	return 0.0;
 }
 
 
@@ -862,91 +525,13 @@ Steel01::getStressSensitivity(int gradIndex, bool conditional)
 double
 Steel01::getInitialTangentSensitivity(int gradIndex)
 {
-	// For now, assume that this is only called for initial stiffness 
-	if (parameterID == 2) {
-		return 1.0; 
-	}
-	else {
-		return 0.0;
-	}
+        return 0.0;
 }
 
 
 int
 Steel01::commitSensitivity(double TstrainSensitivity, int gradIndex, int numGrads)
 {
-	if (SHVs == 0) {
-		SHVs = new Matrix(2,numGrads);
-	}
-
-
-	// Initialize unconditaional stress sensitivity
-	double gradient = 0.0;
-
-
-	// Pick up sensitivity history variables
-	double CstrainSensitivity = 0.0;
-	double CstressSensitivity	 = 0.0;
-	if (SHVs != 0) {
-		CstrainSensitivity = (*SHVs)(0,gradIndex);
-		CstressSensitivity = (*SHVs)(1,gradIndex);
-	}
-
-
-	// Assign values to parameter derivatives (depending on what's random)
-	double fySensitivity = 0.0;
-	double E0Sensitivity = 0.0;
-	double bSensitivity = 0.0;
-	if (parameterID == 1) {
-		fySensitivity = 1.0;
-	}
-	else if (parameterID == 2) {
-		E0Sensitivity = 1.0;
-	}
-	else if (parameterID == 3) {
-		bSensitivity = 1.0;
-	}
-
-
-	// Compute min and max stress
-	double Tstress;
-	double dStrain = Tstrain-Cstrain;
-	double sigmaElastic = Cstress + E0*dStrain;
-	double fyOneMinusB = fy * (1.0 - b);
-	double Esh = b*E0;
-	double c1 = Esh*Tstrain;
-	double c2 = TshiftN*fyOneMinusB;
-	double c3 = TshiftP*fyOneMinusB;
-	double sigmaMax = c1+c3;
-	double sigmaMin = c1-c2;
-
-
-	// Evaluate stress sensitivity ('gradient')
-	if ( (sigmaMax < sigmaElastic) && (fabs(sigmaMax-sigmaElastic)>1e-5) ) {
-		Tstress = sigmaMax;
-		gradient = E0Sensitivity*b*Tstrain 
-				 + E0*bSensitivity*Tstrain
-				 + E0*b*TstrainSensitivity
-				 + TshiftP*(fySensitivity*(1-b)-fy*bSensitivity);
-	}
-	else {
-		Tstress = sigmaElastic;
-		gradient = CstressSensitivity 
-			     + E0Sensitivity*(Tstrain-Cstrain)
-				 + E0*(TstrainSensitivity-CstrainSensitivity);
-	}
-	if (sigmaMin > Tstress) {
-		gradient = E0Sensitivity*b*Tstrain
-			     + E0*bSensitivity*Tstrain
-			     + E0*b*TstrainSensitivity
-				 - TshiftN*(fySensitivity*(1-b)-fy*bSensitivity);
-	}
-
-
-	// Commit history variables
-	(*SHVs)(0,gradIndex) = TstrainSensitivity;
-	(*SHVs)(1,gradIndex) = gradient;
-
 	return 0;
 }
 
