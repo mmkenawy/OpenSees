@@ -47,6 +47,7 @@
 
 #include <elementAPI.h>
 #include <OPS_Globals.h>
+#include <iostream>
 
 
 void *
@@ -226,19 +227,50 @@ int Steel01::setTrial (double strain, double &stress, double &tangent, double st
 void Steel01::determineTrialState ()
 {
   // hard-coded damage parameters
-  double m          = 1.5;  // (overly) non-local strain averaging parameter
-  double initStrain = 0.01; // (compressive) strain at which damage initiates
-  double maxStrain  = 0.03; // (compressive) strain at which material is fully damaged
-  double maxDamage  = 0.8;  // maximum (compressive) damage
+  double m          = 1.0;  // (overly) non-local strain averaging parameter
+  double initStrain = 0.0001; // (compressive) strain at which damage initiates
+  double maxStrain  = 0.07; // 0.07 (compressive) strain at which material is fully damaged
+  double maxDamage  = 1.0;  // maximum (compressive) damage
   
+  //opserr << "Running Brian's model" << endln;
+
   // update the averaged (overly) non-local strain
   double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
   
   // update the damage based on the non-local strain
-  Tdamage = min(max(Cdamage,tanh(-(nlstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
+  //Tdamage = std::min(std::max(Cdamage,tanh(-(nlstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
+  Tdamage = std::min(std::max(Cdamage,tanh(-(Tstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
+  //Tdamage = std::min(std::max(Cdamage,-(nlstrain + initStrain)/(maxStrain - initStrain)),maxDamage);
 
-  // compute the non-local buckling strain
-  double bstrain = Tdamage*min(nlstrain - Cpstrain,0.0);
+  // compute undamaged trial stress
+  Tstress = E0*(Tstrain - Cpstrain);
+
+  // check for violation of the yield constraint
+  double phi = abs(Tstress - b*E0*Cpstrain) - fy;
+  if (phi > 0.0) {
+	// update the yield strain:
+
+	// compute the loading direction
+	double ny = copysign(1.0,Tstress - b*E0*Cpstrain);
+
+	// compute the plastic strain increment
+	double dep = phi/(E0*ny+b*E0*ny);
+
+	// update the total and equivalent plastic strains
+	Tpstrain = Cpstrain +     dep;
+	Teps     = Ceps     + abs(dep);
+
+	// update the undamaged stress
+	Tstress = E0*(Tstrain - Tpstrain);
+  }
+
+  // Apply the damage scale factor to the stress
+  if (Tstress < 0.0) Tstress *= (1.0 - Tdamage);
+
+  /*// compute the non-local buckling strain
+  //double bstrain = Tdamage*std::min(nlstrain - Cpstrain,0.0);
+  double bstrain = Tdamage*std::min(Tstrain - Cpstrain,0.0);
+  double fac = 1.0+0.8*std::min(copysign(Tdamage,Tstrain - Cpstrain),0.0);
 
   // compute the trial stress
   Tstress = E0*(Tstrain - Cpstrain - bstrain);
@@ -249,11 +281,12 @@ void Steel01::determineTrialState ()
     // update the yield strain:
 
     // compute the loading direction
-    double ny = sign(Tstress);
+    double ny = copysign(1.0,Tstress);
 
     // compute the plastic strain increment
     double dep;
-    if (Tnlstrain < Cpstrain) {
+    //if (Tnlstrain < Cpstrain) {
+    if (Tstrain < Cpstrain) {
       dep = phi/((1.0-Tdamage)*E0*ny+b*E0);
     } else {
       dep = phi/(E0*ny+b*E0);
@@ -264,11 +297,12 @@ void Steel01::determineTrialState ()
     Teps     = Ceps     + abs(dep);
 
     // update the buckling strain
-    bstrain = Tdamage*min(nlstrain - Tpstrain,0.0);
+    //bstrain = Tdamage*std::min(nlstrain - Tpstrain,0.0);
+    bstrain = Tdamage*std::min(Tstrain - Tpstrain,0.0);
 
     // update the stress
     Tstress = E0*(Tstrain - Tpstrain - bstrain);
-  }
+  }*/
   
 }
 
