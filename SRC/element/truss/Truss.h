@@ -72,6 +72,7 @@ class Truss : public Element
     int revertToLastCommit(void);        
     int revertToStart(void);        
     int update(void);
+    int computeNLStrain(void);
     
     // public methods to obtain stiffness, mass, damping and residual information    
     const Matrix &getKi(void);

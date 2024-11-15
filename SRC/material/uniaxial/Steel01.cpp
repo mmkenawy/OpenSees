@@ -57,7 +57,7 @@ OPS_Steel01()
   UniaxialMaterial *theMaterial = 0;
 
   int    iData[1];
-  double dData[7];
+  double dData[9];
   int numData = 1;
 
   if (OPS_GetIntInput(&numData, iData) != 0) {
@@ -67,27 +67,33 @@ OPS_Steel01()
 
   numData = OPS_GetNumRemainingInputArgs();
 
-  if (numData != 3 && numData != 7) {
-    opserr << "Invalid #args, want: uniaxialMaterial Steel01 " << iData[0] << " fy? E? b? <a1? a2? a3? a4?>>" << endln;
+  if (numData != 3 && numData != 5 && numData != 9) {
+    opserr << "Invalid #args, want: uniaxialMaterial Steel01 " << iData[0] << " fy? E? b? <initStrain? maxStrain? a1? a2? a3? a4?>>" << endln;
     return 0;
   }
 
   if (OPS_GetDoubleInput(&numData, dData) != 0) {
-    opserr << "Invalid #args, want: uniaxialMaterial Steel01 " << iData[0] << " fy? E? b? <a1? a2? a3? a4?>>" << endln;
+    opserr << "Invalid #args, want: uniaxialMaterial Steel01 " << iData[0] << " fy? E? b? <initStrain? maxStrain? a1? a2? a3? a4?>>" << endln;
     return 0;
   }
 
   if (numData == 3) {
-    dData[3] = STEEL_01_DEFAULT_A1;
-    dData[4] = STEEL_01_DEFAULT_A2;
-    dData[5] = STEEL_01_DEFAULT_A3;
-    dData[6] = STEEL_01_DEFAULT_A4;
+	dData[3] = STEEL_01_DEFAULT_INIT_STRAIN;
+	dData[4] = STEEL_01_DEFAULT_MAX_STRAIN;
+    dData[5] = STEEL_01_DEFAULT_A1;
+    dData[6] = STEEL_01_DEFAULT_A2;
+    dData[7] = STEEL_01_DEFAULT_A3;
+    dData[8] = STEEL_01_DEFAULT_A4;
+  } else if (numData == 5) {
+	dData[5] = STEEL_01_DEFAULT_A1;
+	dData[6] = STEEL_01_DEFAULT_A2;
+	dData[7] = STEEL_01_DEFAULT_A3;
+	dData[8] = STEEL_01_DEFAULT_A4;
   }
 
   // Parsing was successful, allocate the material
-  theMaterial = new Steel01(iData[0], dData[0], dData[1], 
-			    dData[2], dData[3], dData[4], 
-			    dData[5], dData[6]);
+  theMaterial = new Steel01(iData[0], dData[0], dData[1], dData[2], dData[3], dData[4],
+			    dData[5], dData[6], dData[7], dData[8]);
 
   
   if (theMaterial == 0) {
@@ -101,10 +107,10 @@ OPS_Steel01()
 
 
 Steel01::Steel01
-(int tag, double FY, double E, double B,
+(int tag, double FY, double E, double B, double INITSTRAIN, double MAXSTRAIN,
  double A1, double A2, double A3, double A4):
    UniaxialMaterial(tag,MAT_TAG_Steel01),
-   fy(FY), E0(E), b(B), a1(A1), a2(A2), a3(A3), a4(A4)
+   fy(FY), E0(E), b(B), initStrain(INITSTRAIN), maxStrain(MAXSTRAIN), a1(A1), a2(A2), a3(A3), a4(A4)
 {
    // Sets all history and state variables to initial values
    // History variables
@@ -134,7 +140,7 @@ Steel01::Steel01
 }
 
 Steel01::Steel01():UniaxialMaterial(0,MAT_TAG_Steel01),
- fy(0.0), E0(0.0), b(0.0), a1(0.0), a2(0.0), a3(0.0), a4(0.0)
+ fy(0.0), E0(0.0), b(0.0), initStrain(0.0), maxStrain(0.0), a1(0.0), a2(0.0), a3(0.0), a4(0.0)
 {
 	Energy = 0;	//by SAJalali
 
@@ -228,8 +234,8 @@ void Steel01::determineTrialState ()
 {
   // hard-coded damage parameters
   double m          = 1.0;  // (overly) non-local strain averaging parameter
-  double initStrain = 0.0001; // (compressive) strain at which damage initiates
-  double maxStrain  = 0.07; // 0.07 (compressive) strain at which material is fully damaged
+  //double initStrain = 0.01; // 0.0001 (compressive) strain at which damage initiates
+  //double maxStrain  = 0.1; // 0.07 (compressive) strain at which material is fully damaged
   double maxDamage  = 1.0;  // maximum (compressive) damage
   
   //opserr << "Running Brian's model" << endln;
@@ -238,12 +244,16 @@ void Steel01::determineTrialState ()
   double nlstrain = m*Tnlstrain + (1.0-m)*Tstrain;
   
   // update the damage based on the non-local strain
-  //Tdamage = std::min(std::max(Cdamage,tanh(-(nlstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
-  Tdamage = std::min(std::max(Cdamage,tanh(-(Tstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
+  Tdamage = std::min(std::max(Cdamage,tanh(-(nlstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
+  //Tdamage = std::min(std::max(Cdamage,tanh(-(Tstrain + initStrain)/(maxStrain - initStrain))),maxDamage);
   //Tdamage = std::min(std::max(Cdamage,-(nlstrain + initStrain)/(maxStrain - initStrain)),maxDamage);
+  //opserr << "Damage = " << Cdamage << " -> " << Tdamage << endln;
 
   // compute undamaged trial stress
   Tstress = E0*(Tstrain - Cpstrain);
+
+  // set the current trial (assumed elastic) material tangent
+  Ttangent = E0;
 
   // check for violation of the yield constraint
   double phi = abs(Tstress - b*E0*Cpstrain) - fy;
@@ -262,10 +272,16 @@ void Steel01::determineTrialState ()
 
 	// update the undamaged stress
 	Tstress = E0*(Tstrain - Tpstrain);
+
+	// update the current (plastic) tangent
+	Ttangent = E0*b;
   }
 
   // Apply the damage scale factor to the stress
-  if (Tstress < 0.0) Tstress *= (1.0 - Tdamage);
+  if (Tstress < 0.0) {
+	  Tstress  *= (1.0 - Tdamage);
+	  //Ttangent *= (1.0 - Tdamage);
+  }
 
   /*// compute the non-local buckling strain
   //double bstrain = Tdamage*std::min(nlstrain - Cpstrain,0.0);
@@ -387,7 +403,7 @@ int Steel01::revertToStart ()
 
 UniaxialMaterial* Steel01::getCopy ()
 {
-   Steel01* theCopy = new Steel01(this->getTag(), fy, E0, b,
+   Steel01* theCopy = new Steel01(this->getTag(), fy, E0, b, initStrain, maxStrain,
 				  a1, a2, a3, a4);
 
    // Converged state variables
@@ -414,26 +430,28 @@ UniaxialMaterial* Steel01::getCopy ()
 int Steel01::sendSelf (int commitTag, Channel& theChannel)
 {
    int res = 0;
-   static Vector data(14);
+   static Vector data(16);
    data(0) = this->getTag();
 
    // Material properties
    data(1) = fy;
    data(2) = E0;
    data(3) = b;
-   data(4) = a1;
-   data(5) = a2;
-   data(6) = a3;
-   data(7) = a4;
+   data(4) = initStrain;
+   data(5) = maxStrain;
+   data(6) = a1;
+   data(7) = a2;
+   data(8) = a3;
+   data(9) = a4;
 
    // State variables from last converged state
-   data( 8) = Cstrain  ; // strain
-   data( 9) = Cnlstrain; // non-local strain
-   data(10) = Cstress  ; // stress
-   data(11) = Ctangent ; // material stiffness (tangent)
-   data(12) = Cpstrain ; // total plastic strain
-   data(13) = Ceps     ; // equivalent plastic strain
-   data(14) = Cdamage  ; // damage variable controlling compressive softening  
+   data(10) = Cstrain  ; // strain
+   data(11) = Cnlstrain; // non-local strain
+   data(12) = Cstress  ; // stress
+   data(13) = Ctangent ; // material stiffness (tangent)
+   data(14) = Cpstrain ; // total plastic strain
+   data(15) = Ceps     ; // equivalent plastic strain
+   data(16) = Cdamage  ; // damage variable controlling compressive softening
 
    // Data is only sent after convergence, so no trial variables
    // need to be sent through data vector
@@ -449,7 +467,7 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
                                 FEM_ObjectBroker& theBroker)
 {
    int res = 0;
-   static Vector data(14);
+   static Vector data(16);
    res = theChannel.recvVector(this->getDbTag(), commitTag, data);
   
    if (res < 0) {
@@ -463,19 +481,21 @@ int Steel01::recvSelf (int commitTag, Channel& theChannel,
       fy = data(1);
       E0 = data(2);
       b  = data(3);
-      a1 = data(4);
-      a2 = data(5);
-      a3 = data(6);
-      a4 = data(7);
+      initStrain = data(4);
+      maxStrain = data(5);
+      a1 = data(6);
+      a2 = data(7);
+      a3 = data(8);
+      a4 = data(9);
 
       // State variables from last converged state
-      Cstrain   = data( 8); // strain
-      Cnlstrain = data( 9); // non-local strain
-      Cstress   = data(10); // stress
-      Ctangent  = data(11); // material stiffness (tangent)
-      Cpstrain  = data(12); // total plastic strain
-      Ceps      = data(13); // equivalent plastic strain
-      Cdamage   = data(14); // damage variable controlling compressive softening     
+      Cstrain   = data(10); // strain
+      Cnlstrain = data(11); // non-local strain
+      Cstress   = data(12); // stress
+      Ctangent  = data(13); // material stiffness (tangent)
+      Cpstrain  = data(14); // total plastic strain
+      Ceps      = data(15); // equivalent plastic strain
+      Cdamage   = data(16); // damage variable controlling compressive softening
 
       // Copy converged state values into trial values
       Tstrain   = Cstrain;   // strain
@@ -497,6 +517,8 @@ void Steel01::Print (OPS_Stream& s, int flag)
     s << "  fy: " << fy << " ";
     s << "  E0: " << E0 << " ";
     s << "   b: " << b << " ";
+    s << "   initStrain: " << initStrain << " ";
+    s << "   maxStrain: " << maxStrain << " ";
     s << "  a1: " << a1 << " ";
     s << "  a2: " << a2 << " ";
     s << "  a3: " << a3 << " ";
@@ -510,6 +532,8 @@ void Steel01::Print (OPS_Stream& s, int flag)
 	s << "\"E\": " << E0 << ", ";
 	s << "\"fy\": " << fy << ", ";
     s << "\"b\": " << b << ", ";
+    s << "\"initStrain\": " << initStrain << ", ";
+    s << "\"maxStrain\": " << maxStrain << ", ";
     s << "\"a1\": " << a1 << ", ";
     s << "\"a2\": " << a2 << ", ";
     s << "\"a3\": " << a3 << ", ";

@@ -40,6 +40,10 @@
 
 #include <UniaxialMaterial.h>
 
+// Default values for initial and max strain (used by non-local damage model) -bdg
+#define STEEL_01_DEFAULT_INIT_STRAIN 0.01
+#define STEEL_01_DEFAULT_MAX_STRAIN  0.1
+
 // Default values for isotropic hardening parameters a1, a2, a3, and a4
 #define STEEL_01_DEFAULT_A1        0.0
 #define STEEL_01_DEFAULT_A2       55.0
@@ -50,6 +54,7 @@ class Steel01 : public UniaxialMaterial
 {
   public:
     Steel01(int tag, double fy, double E0, double b,
+       double initStrain = STEEL_01_DEFAULT_INIT_STRAIN, double maxStrain = STEEL_01_DEFAULT_MAX_STRAIN,
        double a1 = STEEL_01_DEFAULT_A1, double a2 = STEEL_01_DEFAULT_A2,
        double a3 = STEEL_01_DEFAULT_A3, double a4 = STEEL_01_DEFAULT_A4);
     Steel01();
@@ -96,6 +101,8 @@ class Steel01 : public UniaxialMaterial
     double fy;  // Yield stress
     double E0;  // Initial stiffness
     double b;   // Hardening ratio (b = Esh/E0)
+    double initStrain; // initial strain at damage in compression for non-local buckling model -bdg
+    double maxStrain;  // maximum strain at damage in compression for non-local buckling model -bdg
     double a1;
     double a2;
     double a3;

@@ -509,6 +509,7 @@ Truss::update(void)
     // determine the current strain given trial displacements at nodes
     double strain = this->computeCurrentStrain();
     double rate = this->computeCurrentStrainRate();
+    computeNLStrain();
     return theMaterial->setTrialStrain(strain, rate);
 }
 
@@ -1126,6 +1127,86 @@ Truss::computeCurrentStrain(void) const
   
     // this method should never be called with L == 0
     return dLength/L;
+}
+
+int
+Truss::computeNLStrain(void)
+{
+    //get the number of elements in the domain - MK
+    int numNodes = theDomain->getNumNodes();
+    int numEle = theDomain->getNumElements();
+
+   // check whether the domain has changed since previous step - MK
+    bool flag = theDomain->getDomainChangeFlag();
+    //if the domain hasn't changed, use the nonlocal formulation - MK
+    if (flag == false) {
+        // declare variables - MK
+    double nlstrain;
+    double tempr = 0.0, R = 30.0;
+    static Vector w(numEle);
+    double wsum;
+    int tag = this->getTag();
+    // calculate the normalized weights of the averaging fn - MK
+    for (int i = 0; i < numEle; i++) {
+    tempr = abs(tag-(i+1))*L;
+    w(i) = pow(std::max((1 - pow(tempr,2)/pow(R,2)),0.0),2);
+    wsum += w(i);
+    }
+
+    // compute the strains in all elements - MK
+    static Vector strainArray(numEle);
+
+    for (int n = 0; n < numEle; n++) {
+    Node *tmpNodes[2];
+    tmpNodes[0] = theDomain->getNode(n+1);
+    tmpNodes[1] = theDomain->getNode(n+2);
+
+    const Vector &disp1 = tmpNodes[0]->getTrialDisp();
+    const Vector &disp2 = tmpNodes[1]->getTrialDisp();
+
+    double dLength = 0.0;
+    if (initialDisp == 0)
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i))*cosX[i];
+    else
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i)-initialDisp[i])*cosX[i];
+
+    // this method should never be called with L == 0
+    strainArray(n) = dLength/L;
+    }
+    //transform strain
+//    double lim = -0.002;
+//    for (int n = 0; n < numEle; n++) {
+//        strainArray(n) -= lim;
+//        strainArray(n) = std::min(strainArray(n),0.0);
+//    }
+
+    // Now compute the nonlocal strain in the current element as a weighted average of all elements - MK
+    for (int j = 0; j <numEle; j++) {
+        nlstrain += (w(j)*strainArray(j))/wsum;
+    }
+    double m = 1.5;
+    double localstrain = strainArray(tag-1);
+//    nlstrain = m*nlstrain + (1-m)*strainArray(tag-1);
+    return theMaterial->setNLStrain(nlstrain);
+}
+    // if the domain is still being built, use the local strain fn - MK
+    else {
+    const Vector &disp1 = theNodes[0]->getTrialDisp();
+    const Vector &disp2 = theNodes[1]->getTrialDisp();
+
+    double dLength = 0.0;
+    if (initialDisp == 0)
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i))*cosX[i];
+    else
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i)-initialDisp[i])*cosX[i];
+
+    // this method should never be called with L == 0
+    return theMaterial->setNLStrain(dLength/L);
+    }
 }
 
 double

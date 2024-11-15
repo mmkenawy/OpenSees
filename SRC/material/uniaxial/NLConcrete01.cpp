@@ -346,7 +346,7 @@ void NLConcrete01::reload ()
 
 void NLConcrete01::envelope ()
 {
-  double m = 0.0;
+  double m = 1.5;
   double Ec0 = 2.0*fpc/epsc0;
   double Ed = (fpcu - fpc)/(epscu - epsc0);
   double e0 = -fpc/Ed + epsc0;
