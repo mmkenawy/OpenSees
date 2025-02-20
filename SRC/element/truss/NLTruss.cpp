@@ -27,11 +27,11 @@
 // Created: 07/98
 // Revision: A
 //
-// Description: This file contains the implementation for the Truss class.
+// Description: This file contains the implementation for the NLTruss class.
 //
-// What: "@(#) Truss.C, revA"
+// What: "@(#) NLTruss.C, revA"
 
-#include <Truss.h>
+#include <NLTruss.h>
 #include <Information.h>
 #include <Parameter.h>
 
@@ -51,151 +51,149 @@
 //#include <fstream>
 
 // initialise the class wide variables
-Matrix Truss::trussM2(2,2);
-Matrix Truss::trussM4(4,4);
-Matrix Truss::trussM6(6,6);
-Matrix Truss::trussM12(12,12);
-Vector Truss::trussV2(2);
-Vector Truss::trussV4(4);
-Vector Truss::trussV6(6);
-Vector Truss::trussV12(12);
+Matrix NLTruss::NLtrussM2(2,2);
+Matrix NLTruss::NLtrussM4(4,4);
+Matrix NLTruss::NLtrussM6(6,6);
+Matrix NLTruss::NLtrussM12(12,12);
+Vector NLTruss::NLtrussV2(2);
+Vector NLTruss::NLtrussV4(4);
+Vector NLTruss::NLtrussV6(6);
+Vector NLTruss::NLtrussV12(12);
 
 // constructor:
 //  responsible for allocating the necessary space needed by each object
-//  and storing the tags of the truss end nodes.
+//  and storing the tags of the NLtruss end nodes.
 
 #include <elementAPI.h>
 #define OPS_Export 
 
 OPS_Export void *
-OPS_TrussElement()
+OPS_NLTrussElement()
 {
   Element *theElement = 0;
 
   int numRemainingArgs = OPS_GetNumRemainingInputArgs();
 
   if (numRemainingArgs < 4) {
-    opserr << "Invalid Args want: element Truss $tag $iNode $jNode $sectTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
-    opserr << " or: element Truss $tag $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+    opserr << "Invalid Args want: element NLTruss $tag $iNode $jNode $sectTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
+    opserr << " or: element NLTruss $tag $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
     return 0;	
   }
 
-  if (numRemainingArgs == 4 || numRemainingArgs == 6 || numRemainingArgs == 8 || numRemainingArgs == 10)
-    return 0; // it's a TrussSection
+  if (numRemainingArgs == 4 || numRemainingArgs == 6 || numRemainingArgs == 8 || numRemainingArgs == 10 || numRemainingArgs == 12)
+    return 0; // it's a NLTrussSection
 
   int iData[3];
   double A = 0.0;
+  double nllength = 0.0;
   double rho = 0.0;
   int matTag = 0;
   int doRayleigh = 0; // by default rayleigh not done
   int cMass = 0; // by default use lumped mass matrix
-  bool useInitialDisp = true; // default is the previous behavior
   int ndm = OPS_GetNDM();
 
   int numData = 3;
   if (OPS_GetInt(&numData, iData) != 0) {
-    opserr << "WARNING invalid integer (tag, iNode, jNode) in element Truss " << endln;
+    opserr << "WARNING invalid integer (tag, iNode, jNode) in element NLTruss " << endln;
     return 0;
   }
 
   numData = 1;
   if (OPS_GetDouble(&numData, &A) != 0) {
-    opserr << "WARNING: Invalid A: element Truss " << iData[0] << 
-      " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
+    opserr << "WARNING: Invalid A: element NLTruss " << iData[0] <<
+      " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
     return 0;	
   }
 
   numData = 1;
   if (OPS_GetInt(&numData, &matTag) != 0) {
-    opserr << "WARNING: Invalid matTag: element Truss " << iData[0] << 
-      " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
+    opserr << "WARNING: Invalid matTag: element NLTruss " << iData[0] <<
+      " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
     return 0;
   }
 
   UniaxialMaterial *theUniaxialMaterial = OPS_GetUniaxialMaterial(matTag);
     
   if (theUniaxialMaterial == 0) {
-    opserr << "WARNING: Invalid material not found element Truss " << iData[0] << " $iNode $jNode $A " << 
-      matTag << " <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
+    opserr << "WARNING: Invalid material not found element NLTruss " << iData[0] << " $iNode $jNode $A " <<
+      matTag << "<-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
     return 0;
   }
   
   numRemainingArgs -= 5;
   while (numRemainingArgs > 1) {
     const char *argvS = OPS_GetString();
-  
-    if (strcmp(argvS,"-rho") == 0) {
+    // nllength parameter - MK
+    if (strcmp(argvS,"-nllength") == 0) {
+      numData = 1;
+      if (OPS_GetDouble(&numData, &nllength) != 0) {
+	opserr << "WARNING zero nllength in element NLTruss " << iData[0] <<
+	  " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
+	return 0;
+      }
+    } else if (strcmp(argvS,"-rho") == 0) {
       numData = 1;
       if (OPS_GetDouble(&numData, &rho) != 0) {
-	opserr << "WARNING Invalid rho in element Truss " << iData[0] << 
-	  " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+	opserr << "WARNING Invalid rho in element NLTruss " << iData[0] <<
+	  " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
 	return 0;
       }
     } else if (strcmp(argvS,"-cMass") == 0) {
       numData = 1;
       if (OPS_GetInt(&numData, &cMass) != 0) {
-	opserr << "WARNING: Invalid cMass in element Truss " << iData[0] << 
-	  " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+	opserr << "WARNING: Invalid cMass in element NLTruss " << iData[0] <<
+	  " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
 	return 0;
       }
     } else if (strcmp(argvS,"-doRayleigh") == 0) {
       numData = 1;
       if (OPS_GetInt(&numData, &doRayleigh) != 0) {
-	opserr << "WARNING: Invalid doRayleigh in element Truss " << iData[0] << 
-	  " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+	opserr << "WARNING: Invalid doRayleigh in element NLTruss " << iData[0] <<
+	  " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
 	return 0;
       }
-    } else if (strcmp(argvS,"-useInitialDisp") == 0) {
-      numData = 1;
-      int useid = 1;
-      if (OPS_GetInt(&numData, &useid) != 0) {
-	opserr << "WARNING: Invalid useInitialDisp in element Truss " << iData[0] <<
-	  " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
-	return 0;
-      }
-      useInitialDisp = useid != 0;
     } else {
-      opserr << "WARNING: Invalid option " << argvS << "  in: element Truss " << iData[0] << 
-	" $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+      opserr << "WARNING: Invalid option " << argvS << "  in: element NLTruss " << iData[0] <<
+	" $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
       return 0;
     }      
     numRemainingArgs -= 2;
   }
 
-  // now create the Truss
-  theElement = new Truss(iData[0], ndm, iData[1], iData[2], *theUniaxialMaterial, A, rho, doRayleigh, cMass, useInitialDisp);
+  // now create the NLTruss
+  theElement = new NLTruss(iData[0], ndm, iData[1], iData[2], *theUniaxialMaterial, A, nllength, rho, doRayleigh, cMass);
 
   if (theElement == 0) {
-    opserr << "WARNING: out of memory: element Truss " << iData[0] << 
-      " $iNode $jNode $A $matTag <-rho $rho> <-cMass $flag> <-doRayleigh $flag> <-useInitialDisp $flag>\n";
+    opserr << "WARNING: out of memory: element NLTruss " << iData[0] <<
+      " $iNode $jNode $A $matTag <-nllength $nllength> <-rho $rho> <-cMass $flag> <-doRayleigh $flag>\n";
   }
 
   return theElement;
 }
 
-Truss::Truss(int tag, int dim,
+NLTruss::NLTruss(int tag, int dim,
          int Nd1, int Nd2, 
          UniaxialMaterial &theMat,
-         double a, double r,
-	     int damp, int cm, bool initDisp)
- :Element(tag,ELE_TAG_Truss),
+         double a, double nllen, double r,
+         int damp, int cm)
+ :Element(tag,ELE_TAG_NLTruss),
   theMaterial(0), connectedExternalNodes(2),
   dimension(dim), numDOF(0),
   theLoad(0), theMatrix(0), theVector(0),
-  L(0.0), A(a), rho(r), doRayleighDamping(damp),
-  cMass(cm), useInitialDisp(initDisp), initialDisp(0)
+  L(0.0), A(a), nllength(nllen), rho(r), doRayleighDamping(damp),
+  cMass(cm), initialDisp(0)
 {
     // get a copy of the material and check we obtained a valid copy
     theMaterial = theMat.getCopy();
     if (theMaterial == 0) {
-      opserr << "FATAL Truss::Truss - " << tag <<
+      opserr << "FATAL NLTruss::NLTruss - " << tag <<
 	"failed to get a copy of material with tag " << theMat.getTag() << endln;
       exit(-1);
     }
     
     // ensure the connectedExternalNode ID is of correct size & set values
     if (connectedExternalNodes.Size() != 2) {
-      opserr << "FATAL Truss::Truss - " <<  tag << "failed to create an ID of size 2\n";
+      opserr << "FATAL NLTruss::NLTruss - " <<  tag << "failed to create an ID of size 2\n";
       exit(-1);
     }
 
@@ -219,17 +217,17 @@ Truss::Truss(int tag, int dim,
 // constructor:
 //   invoked by a FEM_ObjectBroker - blank object that recvSelf needs
 //   to be invoked upon
-Truss::Truss()
-:Element(0,ELE_TAG_Truss),     
+NLTruss::NLTruss()
+:Element(0,ELE_TAG_NLTruss),
  theMaterial(0),connectedExternalNodes(2),
  dimension(0), numDOF(0),
  theLoad(0), theMatrix(0), theVector(0),
- L(0.0), A(0.0), rho(0.0), doRayleighDamping(0),
- cMass(0), useInitialDisp(false), initialDisp(0)
+ L(0.0), A(0.0), nllength(0.0), rho(0.0), doRayleighDamping(0),
+ cMass(0), initialDisp(0)
 {
     // ensure the connectedExternalNode ID is of correct size 
   if (connectedExternalNodes.Size() != 2) {
-      opserr << "FATAL Truss::Truss - failed to create an ID of size 2\n";
+      opserr << "FATAL NLTruss::NLTruss - failed to create an ID of size 2\n";
       exit(-1);
   }
 
@@ -249,7 +247,7 @@ Truss::Truss()
 //  destructor
 //     delete must be invoked on any objects created by the object
 //     and on the matertial object.
-Truss::~Truss()
+NLTruss::~NLTruss()
 {
     // invoke the destructor on any objects created by the object
     // that the object still holds a pointer to
@@ -265,25 +263,25 @@ Truss::~Truss()
 
 
 int
-Truss::getNumExternalNodes(void) const
+NLTruss::getNumExternalNodes(void) const
 {
     return 2;
 }
 
 const ID &
-Truss::getExternalNodes(void) 
+NLTruss::getExternalNodes(void)
 {
     return connectedExternalNodes;
 }
 
 Node **
-Truss::getNodePtrs(void) 
+NLTruss::getNodePtrs(void)
 {
   return theNodes;
 }
 
 int
-Truss::getNumDOF(void) 
+NLTruss::getNumDOF(void)
 {
     return numDOF;
 }
@@ -292,11 +290,11 @@ Truss::getNumDOF(void)
 // method: setDomain()
 //    to set a link to the enclosing Domain and to set the node pointers.
 //    also determines the number of dof associated
-//    with the truss element, we set matrix and vector pointers,
+//    with the NLtruss element, we set matrix and vector pointers,
 //    allocate space for t matrix, determine the length
 //    and set the transformation matrix.
 void
-Truss::setDomain(Domain *theDomain)
+NLTruss::setDomain(Domain *theDomain)
 {
     // check Domain is not null - invoked when object removed from a domain
     if (theDomain == 0) {
@@ -315,16 +313,16 @@ Truss::setDomain(Domain *theDomain)
     // if can't find both - send a warning message
     if ((theNodes[0] == 0) || (theNodes[1] == 0)) {
       if (theNodes[0] == 0)
-	opserr <<"Truss::setDomain() - truss" << this->getTag() << " node " << Nd1 <<
+	opserr <<"NLTruss::setDomain() - NLtruss" << this->getTag() << " node " << Nd1 <<
 	  "does not exist in the model\n";
       else
-	opserr <<"Truss::setDomain() - truss" << this->getTag() << " node " << Nd2 <<
+	opserr <<"NLTruss::setDomain() - NLtruss" << this->getTag() << " node " << Nd2 <<
 	  "does not exist in the model\n";
 
       // fill this in so don't segment fault later
       numDOF = 2;    
-      theMatrix = &trussM2;
-      theVector = &trussV2;	
+      theMatrix = &NLtrussM2;
+      theVector = &NLtrussV2;
 
       return;
     }
@@ -335,13 +333,13 @@ Truss::setDomain(Domain *theDomain)
 
     // if differing dof at the ends - print a warning message
     if (dofNd1 != dofNd2) {
-      opserr <<"WARNING Truss::setDomain(): nodes " << Nd1 << " and " << Nd2 <<
-	"have differing dof at ends for truss " << this->getTag() << endln;
+      opserr <<"WARNING NLTruss::setDomain(): nodes " << Nd1 << " and " << Nd2 <<
+	"have differing dof at ends for NLtruss " << this->getTag() << endln;
 
       // fill this in so don't segment fault later
       numDOF = 2;    
-      theMatrix = &trussM2;
-      theVector = &trussV2;	
+      theMatrix = &NLtrussM2;
+      theVector = &NLtrussV2;
 	
       return;
     }	
@@ -352,36 +350,36 @@ Truss::setDomain(Domain *theDomain)
     // now set the number of dof for element and set matrix and vector pointer
     if (dimension == 1 && dofNd1 == 1) {
 	numDOF = 2;    
-	theMatrix = &trussM2;
-	theVector = &trussV2;
+	theMatrix = &NLtrussM2;
+	theVector = &NLtrussV2;
     }
     else if (dimension == 2 && dofNd1 == 2) {
 	numDOF = 4;
-	theMatrix = &trussM4;
-	theVector = &trussV4;	
+	theMatrix = &NLtrussM4;
+	theVector = &NLtrussV4;
     }
     else if (dimension == 2 && dofNd1 == 3) {
 	numDOF = 6;	
-	theMatrix = &trussM6;
-	theVector = &trussV6;		
+	theMatrix = &NLtrussM6;
+	theVector = &NLtrussV6;
     }
     else if (dimension == 3 && dofNd1 == 3) {
 	numDOF = 6;	
-	theMatrix = &trussM6;
-	theVector = &trussV6;			
+	theMatrix = &NLtrussM6;
+	theVector = &NLtrussV6;
     }
     else if (dimension == 3 && dofNd1 == 6) {
 	numDOF = 12;	    
-	theMatrix = &trussM12;
-	theVector = &trussV12;			
+	theMatrix = &NLtrussM12;
+	theVector = &NLtrussV12;
     }
     else {
-      opserr <<"WARNING Truss::setDomain cannot handle " << dimension << " dofs at nodes in " << 
+      opserr <<"WARNING NLTruss::setDomain cannot handle " << dimension << " dofs at nodes in " <<
 	dofNd1  << " problem\n";
 
       numDOF = 2;    
-      theMatrix = &trussM2;
-      theVector = &trussV2;	
+      theMatrix = &NLtrussM2;
+      theVector = &NLtrussV2;
       return;
     }
 
@@ -394,7 +392,7 @@ Truss::setDomain(Domain *theDomain)
     }
 
     if (theLoad == 0) {
-      opserr << "Truss::setDomain - truss " << this->getTag() << 
+      opserr << "NLTruss::setDomain - NLtruss " << this->getTag() <<
 	"out of memory creating vector of size" << numDOF << endln;
       exit(-1);
       return;
@@ -410,7 +408,7 @@ Truss::setDomain(Domain *theDomain)
     if (dimension == 1) {
       double dx = end2Crd(0)-end1Crd(0);
 
-      if (useInitialDisp && initialDisp == 0) {
+      if (initialDisp == 0) {
 	double iDisp = end2Disp(0)-end1Disp(0);
 
 	if (iDisp != 0) {
@@ -422,7 +420,7 @@ Truss::setDomain(Domain *theDomain)
       L = sqrt(dx*dx);
       
       if (L == 0.0) {
-	opserr <<"WARNING Truss::setDomain() - truss " << this->getTag() << " has zero length\n";
+	opserr <<"WARNING NLTruss::setDomain() - NLtruss " << this->getTag() << " has zero length\n";
 	return;
       }
       
@@ -432,7 +430,7 @@ Truss::setDomain(Domain *theDomain)
       double dx = end2Crd(0)-end1Crd(0);
       double dy = end2Crd(1)-end1Crd(1);	
     
-      if (useInitialDisp && initialDisp == 0) {
+      if (initialDisp == 0) {
 	double iDispX = end2Disp(0)-end1Disp(0);
 	double iDispY = end2Disp(1)-end1Disp(1);
 	if (iDispX != 0 || iDispY != 0) {
@@ -447,7 +445,7 @@ Truss::setDomain(Domain *theDomain)
       L = sqrt(dx*dx + dy*dy);
       
       if (L == 0.0) {
-	opserr <<"WARNING Truss::setDomain() - truss " << this->getTag() << " has zero length\n";
+	opserr <<"WARNING NLTruss::setDomain() - NLtruss " << this->getTag() << " has zero length\n";
 	return;
       }
 	
@@ -460,7 +458,7 @@ Truss::setDomain(Domain *theDomain)
       double dy = end2Crd(1)-end1Crd(1);	
       double dz = end2Crd(2)-end1Crd(2);		
 
-      if (useInitialDisp && initialDisp == 0) {
+      if (initialDisp == 0) {
 	double iDispX = end2Disp(0)-end1Disp(0);
 	double iDispY = end2Disp(1)-end1Disp(1);      
 	double iDispZ = end2Disp(2)-end1Disp(2);      
@@ -478,7 +476,7 @@ Truss::setDomain(Domain *theDomain)
       L = sqrt(dx*dx + dy*dy + dz*dz);
       
       if (L == 0.0) {
-	opserr <<"WARNING Truss::setDomain() - truss " << this->getTag() << " has zero length\n";
+	opserr <<"WARNING NLTruss::setDomain() - NLtruss " << this->getTag() << " has zero length\n";
 	return;
       }
 	
@@ -490,41 +488,42 @@ Truss::setDomain(Domain *theDomain)
 
 
 int
-Truss::commitState()
+NLTruss::commitState()
 {
   int retVal = 0;
   // call element commitState to do any base class stuff
   if ((retVal = this->Element::commitState()) != 0) {
-    opserr << "Truss::commitState () - failed in base class";
+    opserr << "NLTruss::commitState () - failed in base class";
   }    
   retVal = theMaterial->commitState();
   return retVal;
 }
 
 int
-Truss::revertToLastCommit()
+NLTruss::revertToLastCommit()
 {
     return theMaterial->revertToLastCommit();
 }
 
 int
-Truss::revertToStart()
+NLTruss::revertToStart()
 {
     return theMaterial->revertToStart();
 }
 
 int
-Truss::update(void)
+NLTruss::update(void)
 {
     // determine the current strain given trial displacements at nodes
     double strain = this->computeCurrentStrain();
     double rate = this->computeCurrentStrainRate();
+    computeNLStrain();
     return theMaterial->setTrialStrain(strain, rate);
 }
 
 
 const Matrix &
-Truss::getTangentStiff(void)
+NLTruss::getTangentStiff(void)
 {
     if (L == 0.0) { // - problem in setDomain() no further warnings
 	theMatrix->Zero();
@@ -554,7 +553,7 @@ Truss::getTangentStiff(void)
 
 
 const Matrix &
-Truss::getInitialStiff(void)
+NLTruss::getInitialStiff(void)
 {
     if (L == 0.0) { // - problem in setDomain() no further warnings
 	theMatrix->Zero();
@@ -583,7 +582,7 @@ Truss::getInitialStiff(void)
 }
 
 const Matrix &
-Truss::getDamp(void)
+NLTruss::getDamp(void)
 {
   if (L == 0.0) { // - problem in setDomain() no further warnings
     theMatrix->Zero();
@@ -618,7 +617,7 @@ Truss::getDamp(void)
 
 
 const Matrix &
-Truss::getMass(void)
+NLTruss::getMass(void)
 {
   // zero the matrix
   Matrix &mass = *theMatrix;
@@ -653,21 +652,21 @@ Truss::getMass(void)
 }
 
 void 
-Truss::zeroLoad(void)
+NLTruss::zeroLoad(void)
 {
   theLoad->Zero();
 }
 
 int 
-Truss::addLoad(ElementalLoad *theLoad, double loadFactor)
+NLTruss::addLoad(ElementalLoad *theLoad, double loadFactor)
 
 {  
-  opserr <<"Truss::addLoad - load type unknown for truss with tag: " << this->getTag() << endln; 
+  opserr <<"NLTruss::addLoad - load type unknown for NLtruss with tag: " << this->getTag() << endln;
   return -1;
 }
 
 int 
-Truss::addInertiaLoadToUnbalance(const Vector &accel)
+NLTruss::addInertiaLoadToUnbalance(const Vector &accel)
 {
   // check for a quick return
   if (L == 0.0 || rho == 0.0) 
@@ -681,7 +680,7 @@ Truss::addInertiaLoadToUnbalance(const Vector &accel)
   
 #ifdef _G3DEBUG    
   if (nodalDOF != Raccel1.Size() || nodalDOF != Raccel2.Size()) {
-    opserr <<"Truss::addInertiaLoadToUnbalance " <<
+    opserr <<"NLTruss::addInertiaLoadToUnbalance " <<
       "matrix and vector sizes are incompatible\n";
     return -1;
   }
@@ -707,7 +706,7 @@ Truss::addInertiaLoadToUnbalance(const Vector &accel)
 
 
 int 
-Truss::addInertiaLoadSensitivityToUnbalance(const Vector &accel, bool somethingRandomInMotions)
+NLTruss::addInertiaLoadSensitivityToUnbalance(const Vector &accel, bool somethingRandomInMotions)
 {
 
   if (theLoadSens == 0) {
@@ -733,7 +732,7 @@ Truss::addInertiaLoadSensitivityToUnbalance(const Vector &accel, bool somethingR
     
 #ifdef _G3DEBUG    
     if (nodalDOF != Raccel1.Size() || nodalDOF != Raccel2.Size()) {
-      opserr << "Truss::addInertiaLoadToUnbalance " <<
+      opserr << "NLTruss::addInertiaLoadToUnbalance " <<
 	"matrix and vector sizes are incompatible\n";
       return -1;
     }
@@ -767,7 +766,7 @@ Truss::addInertiaLoadSensitivityToUnbalance(const Vector &accel, bool somethingR
     
 #ifdef _G3DEBUG    
     if (nodalDOF != Raccel1.Size() || nodalDOF != Raccel2.Size()) {
-      opserr << "Truss::addInertiaLoadToUnbalance " <<
+      opserr << "NLTruss::addInertiaLoadToUnbalance " <<
 	"matrix and vector sizes are incompatible\n";
       return -1;
     }
@@ -796,7 +795,7 @@ Truss::addInertiaLoadSensitivityToUnbalance(const Vector &accel, bool somethingR
 }
 
 const Vector &
-Truss::getResistingForce()
+NLTruss::getResistingForce()
 {	
     if (L == 0.0) { // - problem in setDomain() no further warnings
 	theVector->Zero();
@@ -822,7 +821,7 @@ Truss::getResistingForce()
 
 
 const Vector &
-Truss::getResistingForceIncInertia()
+NLTruss::getResistingForceIncInertia()
 {	
   this->getResistingForce();
   
@@ -865,7 +864,7 @@ Truss::getResistingForceIncInertia()
 }
 
 int
-Truss::sendSelf(int commitTag, Channel &theChannel)
+NLTruss::sendSelf(int commitTag, Channel &theChannel)
 {
   int res;
 
@@ -874,7 +873,7 @@ Truss::sendSelf(int commitTag, Channel &theChannel)
   // object - don't want to have to do the check if sending data
   int dataTag = this->getDbTag();
 
-  // truss packs it's data into a Vector and sends this to theChannel
+  // NLtruss packs it's data into a Vector and sends this to theChannel
   // along with it's dbTag and the commitTag passed in the arguments
 
   static Vector data(13);
@@ -882,17 +881,17 @@ Truss::sendSelf(int commitTag, Channel &theChannel)
   data(1) = dimension;
   data(2) = numDOF;
   data(3) = A;
-  data(6) = rho;
-  data(7) = doRayleighDamping;
-  data(8) = cMass;
+  data(6) = nllength;
+  data(7) = rho;
+  data(8) = doRayleighDamping;
+  data(9) = cMass;
   
   data(4) = theMaterial->getClassTag();
   int matDbTag = theMaterial->getDbTag();
   
-  data(12) = useInitialDisp ? 1.0 : -1.0;
-  if (useInitialDisp && initialDisp != 0) {
+  if (initialDisp != 0) {
     for (int i=0; i<dimension; i++) {
-      data[9+i] = initialDisp[i];
+      data[10+i] = initialDisp[i];
     }
   }
 
@@ -907,21 +906,21 @@ Truss::sendSelf(int commitTag, Channel &theChannel)
 
   res = theChannel.sendVector(dataTag, commitTag, data);
   if (res < 0) {
-    opserr <<"WARNING Truss::sendSelf() - " << this->getTag() << " failed to send Vector\n";
+    opserr <<"WARNING NLTruss::sendSelf() - " << this->getTag() << " failed to send Vector\n";
     return -1;
   }	      
 
-  // truss then sends the tags of it's two end nodes
+  // NLtruss then sends the tags of it's two end nodes
   res = theChannel.sendID(dataTag, commitTag, connectedExternalNodes);
   if (res < 0) {
-    opserr <<"WARNING Truss::sendSelf() - " << this->getTag() << " failed to send Vector\n";
+    opserr <<"WARNING NLTruss::sendSelf() - " << this->getTag() << " failed to send Vector\n";
     return -2;
   }
 
-  // finally truss asks it's material object to send itself
+  // finally NLtruss asks it's material object to send itself
   res = theMaterial->sendSelf(commitTag, theChannel);
   if (res < 0) {
-    opserr <<"WARNING Truss::sendSelf() - " << this->getTag() << " failed to send its Material\n";
+    opserr <<"WARNING NLTruss::sendSelf() - " << this->getTag() << " failed to send its Material\n";
     return -3;
   }
 
@@ -929,18 +928,18 @@ Truss::sendSelf(int commitTag, Channel &theChannel)
 }
 
 int
-Truss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
+NLTruss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
 {
   int res;
   int dataTag = this->getDbTag();
 
-  // truss creates a Vector, receives the Vector and then sets the 
+  // NLtruss creates a Vector, receives the Vector and then sets the
   // internal data with the data in the Vector
 
   static Vector data(13);
   res = theChannel.recvVector(dataTag, commitTag, data);
   if (res < 0) {
-    opserr <<"WARNING Truss::recvSelf() - failed to receive Vector\n";
+    opserr <<"WARNING NLTruss::recvSelf() - failed to receive Vector\n";
     return -1;
   }	      
 
@@ -948,40 +947,36 @@ Truss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
   dimension = (int)data(1);
   numDOF = (int)data(2);
   A = data(3);
-  rho = data(6);
-  doRayleighDamping = (int)data(7);
-  cMass = (int)data(8);
+  nllength = data(6);
+  rho = data(7);
+  doRayleighDamping = (int)data(8);
+  cMass = (int)data(9);
 
-  useInitialDisp = data(12) > 0.0 ? true : false;
-  if (initialDisp != 0)
-    delete [] initialDisp;
-  if (useInitialDisp) {
-    initialDisp = new double[dimension];
-    for (int i=0; i<dimension; i++)
-      initialDisp[i] = 0.0;
+  initialDisp = new double[dimension];
+  for (int i=0; i<dimension; i++)
+    initialDisp[i] = 0.0;
 
-    int initial = 0;
-    for (int i=0; i<dimension; i++) {
-      if (data(9+i) != 0.0) {
-	initial = 1;
-      }
-    }
-
-    if (initial != 0) {
-      for (int i=0; i<dimension; i++) {
-	initialDisp[i] = data(9+i);
-      }
+  int initial = 0;
+  for (int i=0; i<dimension; i++) {
+    if (data(10+i) != 0.0) {
+      initial = 1;
     }
   }
   
-  // truss now receives the tags of it's two external nodes
+  if (initial != 0) {
+    for (int i=0; i<dimension; i++) {
+      initialDisp[i] = data(10+i);
+    }    
+  }
+  
+  // NLtruss now receives the tags of it's two external nodes
   res = theChannel.recvID(dataTag, commitTag, connectedExternalNodes);
   if (res < 0) {
-    opserr <<"WARNING Truss::recvSelf() - " << this->getTag() << " failed to receive ID\n";
+    opserr <<"WARNING NLTruss::recvSelf() - " << this->getTag() << " failed to receive ID\n";
     return -2;
   }
 
-  // finally truss creates a material object of the correct type,
+  // finally NLtruss creates a material object of the correct type,
   // sets its database tag and asks this new object to recveive itself.
 
   int matClass = (int)data(4);
@@ -997,7 +992,7 @@ Truss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
     // create a new material object
     theMaterial = theBroker.getNewUniaxialMaterial(matClass);
     if (theMaterial == 0) {
-      opserr <<"WARNING Truss::recvSelf() - " << this->getTag() 
+      opserr <<"WARNING NLTruss::recvSelf() - " << this->getTag()
 	<< " failed to get a blank Material of type " << matClass << endln;
       return -3;
     }
@@ -1006,7 +1001,7 @@ Truss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
   theMaterial->setDbTag(matDb); // note: we set the dbTag before we receive the material
   res = theMaterial->recvSelf(commitTag, theChannel, theBroker);
   if (res < 0) {
-    opserr <<"WARNING Truss::recvSelf() - "<< this->getTag() << "failed to receive its Material\n";
+    opserr <<"WARNING NLTruss::recvSelf() - "<< this->getTag() << "failed to receive its Material\n";
     return -3;    
   }
 
@@ -1014,58 +1009,62 @@ Truss::recvSelf(int commitTag, Channel &theChannel, FEM_ObjectBroker &theBroker)
 }
 
 int
-Truss::displaySelf(Renderer &theViewer, int displayMode, float fact, 
+NLTruss::displaySelf(Renderer &theViewer, int displayMode, float fact,
 		   const char **displayModes, int numModes)
 {
   int res = 0;
   if (L == 0.0)
     return res;
-
+  
   static Vector v1(3);
   static Vector v2(3);
   float d1 = 0.0;
   float d2 = 0.0;
+  
+  theNodes[0]->getDisplayCrds(v1, fact);
+  theNodes[1]->getDisplayCrds(v2, fact);
 
-  theNodes[0]->getDisplayCrds(v1, fact, displayMode);
-  theNodes[1]->getDisplayCrds(v2, fact, displayMode);
-
-  res += theViewer.drawLine(v1, v2, d1, d2, this->getTag());
-
-  // only add force, material, etc. when displayMode > 0...
-  // ...doesn't make sense for mode shapes -ambaker1
   if (displayMode > 0) {
-      for (int i = 0; i < numModes; i++) {
-          const char* mode = displayModes[i];
-          if (strcmp(mode, "axialForce") == 0) {
-              double force = A * theMaterial->getStress();
-              d1 = force;
-              d2 = force;
-              res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
-          }
-          else if (strcmp(mode, "material") == 0) {
-              d1 = theMaterial->getTag();
-              d2 = theMaterial->getTag();
-              res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
-          }
-          else if (strcmp(mode, "materialStress") == 0) {
-              d1 = theMaterial->getStress();
-              d2 = theMaterial->getStress();
-              res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
-          }
-          else if (strcmp(mode, "materialStrain") == 0) {
-              d1 = theMaterial->getStrain();
-              d2 = theMaterial->getStrain();
-              res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
-          }
-      }
+    res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), 0);
   }
+  
+  for (int i=0; i<numModes; i++) {
+    
+    const char *mode = displayModes[i];
+    if (strcmp(mode, "axialForce") == 0) {
+      double force = A*theMaterial->getStress();    	  
+      d1 = force; 
+      d2 = force;
+
+      res +=theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
+      
+    } else if (strcmp(mode, "material") == 0) {
+      d1 = theMaterial->getTag();
+      d2 = theMaterial->getTag();
+
+      res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
+      
+    } else if (strcmp(mode, "materialStress") == 0) {
+      d1 = theMaterial->getStress();
+      d2 = theMaterial->getStress();
+
+      res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
+      
+      } else if (strcmp(mode, "materialStrain") == 0) {
+      
+      d1 = theMaterial->getStrain();
+      d2 = theMaterial->getStrain();
+
+      res += theViewer.drawLine(v1, v2, d1, d1, this->getTag(), i);
+    }
+  }    
   return res;
 }
 
 
 
 void
-Truss::Print(OPS_Stream &s, int flag)
+NLTruss::Print(OPS_Stream &s, int flag)
 {
     // compute the strain and axial force in the member
     double strain, force;
@@ -1074,7 +1073,7 @@ Truss::Print(OPS_Stream &s, int flag)
     
 	if (flag == OPS_PRINT_CURRENTSTATE) {
 		s << "Element: " << this->getTag();
-		s << " type: Truss  iNode: " << connectedExternalNodes(0);
+		s << " type: NLTruss  iNode: " << connectedExternalNodes(0);
 		s << " jNode: " << connectedExternalNodes(1);
 		s << " Area: " << A << " Mass/Length: " << rho;
 		s << " cMass: " << cMass;
@@ -1111,7 +1110,7 @@ Truss::Print(OPS_Stream &s, int flag)
 	if (flag == OPS_PRINT_PRINTMODEL_JSON) {
 		s << "\t\t\t{";
 		s << "\"name\": " << this->getTag() << ", ";
-		s << "\"type\": \"Truss\", ";
+		s << "\"type\": \"NLTruss\", ";
 		s << "\"nodes\": [" << connectedExternalNodes(0) << ", " << connectedExternalNodes(1) << "], ";
 		s << "\"A\": " << A << ", ";
 		s << "\"massperlength\": " << rho << ", ";
@@ -1120,7 +1119,7 @@ Truss::Print(OPS_Stream &s, int flag)
 }
 
 double
-Truss::computeCurrentStrain(void) const
+NLTruss::computeCurrentStrain(void) const
 {
     // NOTE method will not be called if L == 0
 
@@ -1129,7 +1128,7 @@ Truss::computeCurrentStrain(void) const
     const Vector &disp2 = theNodes[1]->getTrialDisp();	
 
     double dLength = 0.0;
-    if (!useInitialDisp || initialDisp == 0)
+    if (initialDisp == 0)
       for (int i = 0; i < dimension; i++)
 	dLength += (disp2(i)-disp1(i))*cosX[i];
     else
@@ -1140,8 +1139,91 @@ Truss::computeCurrentStrain(void) const
     return dLength/L;
 }
 
+int
+NLTruss::computeNLStrain(void)
+{
+    //get the number of elements in the domain - MK
+    int numNodes = theDomain->getNumNodes();
+    int numEle = theDomain->getNumElements();
+
+   // check whether the domain has changed since previous step - MK
+    bool flag = theDomain->getDomainChangeFlag();
+    //if the domain hasn't changed, use the nonlocal formulation - MK
+    if (flag == false) {
+        // declare variables - MK
+    double nlstrain;
+    double tempr = 0.0;
+    //double R = 30.0;
+    double R = nllength; // nonlocal length parameter
+    double overR2 = 1/pow(R,2);
+    static Vector w(numEle);
+    double wsum;
+    int tag = this->getTag();
+    // calculate the normalized weights of the averaging fn - MK
+    for (int i = 0; i < numEle; i++) {
+    tempr = abs(tag-(i+1))*L;
+    w(i) = pow(std::max((1 - pow(tempr,2)*overR2),0.0),2);
+    wsum += w(i);
+    }
+
+    // compute the strains in all elements - MK
+    static Vector strainArray(numEle);
+
+    for (int n = 0; n < numEle; n++) {
+    Node *tmpNodes[2];
+    tmpNodes[0] = theDomain->getNode(n+1);
+    tmpNodes[1] = theDomain->getNode(n+2);
+
+    const Vector &disp1 = tmpNodes[0]->getTrialDisp();
+    const Vector &disp2 = tmpNodes[1]->getTrialDisp();
+
+    double dLength = 0.0;
+    if (initialDisp == 0)
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i))*cosX[i];
+    else
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i)-initialDisp[i])*cosX[i];
+
+    // this method should never be called with L == 0
+    strainArray(n) = dLength/L;
+    }
+    //transform strain
+//    double lim = -0.002;
+//    for (int n = 0; n < numEle; n++) {
+//        strainArray(n) -= lim;
+//        strainArray(n) = std::min(strainArray(n),0.0);
+//    }
+
+    // Now compute the nonlocal strain in the current element as a weighted average of all elements - MK
+    for (int j = 0; j <numEle; j++) {
+        nlstrain += (w(j)*strainArray(j))/wsum;
+    }
+    //double m = 1.5;
+    double localstrain = strainArray(tag-1);
+//    nlstrain = m*nlstrain + (1-m)*strainArray(tag-1);
+    return theMaterial->setNLStrain(nlstrain);
+}
+    // if the domain is still being built, use the local strain fn - MK
+    else {
+    const Vector &disp1 = theNodes[0]->getTrialDisp();
+    const Vector &disp2 = theNodes[1]->getTrialDisp();
+
+    double dLength = 0.0;
+    if (initialDisp == 0)
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i))*cosX[i];
+    else
+      for (int i = 0; i < dimension; i++)
+	dLength += (disp2(i)-disp1(i)-initialDisp[i])*cosX[i];
+
+    // this method should never be called with L == 0
+    return theMaterial->setNLStrain(dLength/L);
+    }
+}
+
 double
-Truss::computeCurrentStrainRate(void) const
+NLTruss::computeCurrentStrainRate(void) const
 {
     // NOTE method will not be called if L == 0
 
@@ -1158,25 +1240,25 @@ Truss::computeCurrentStrainRate(void) const
 }
 
 Response*
-Truss::setResponse(const char **argv, int argc, OPS_Stream &output)
+NLTruss::setResponse(const char **argv, int argc, OPS_Stream &output)
 {
 
     Response *theResponse = 0;
 
     output.tag("ElementOutput");
-    output.attr("eleType","Truss");
+    output.attr("eleType","NLTruss");
     output.attr("eleTag",this->getTag());
     output.attr("node1",connectedExternalNodes[0]);
     output.attr("node2",connectedExternalNodes[1]);
 
     //
-    // we compare argv[0] for known response types for the Truss
+    // we compare argv[0] for known response types for the NLTruss
     //
 
 
     if ((strcmp(argv[0],"force") == 0) || (strcmp(argv[0],"forces") == 0) 
         || (strcmp(argv[0],"globalForce") == 0) || (strcmp(argv[0],"globalForces") == 0)){
-            char outputData[40];
+            char outputData[10];
             int numDOFperNode = numDOF/2;
             for (int i=0; i<numDOFperNode; i++) {
                 sprintf(outputData,"P1_%d", i+1);
@@ -1188,11 +1270,9 @@ Truss::setResponse(const char **argv, int argc, OPS_Stream &output)
             }
             theResponse =  new ElementResponse(this, 1, Vector(numDOF));
 
-    } else if ((strcmp(argv[0],"localForce") == 0) || (strcmp(argv[0],"localForces") == 0) ) {
-            theResponse =  new ElementResponse(this, 11, Vector(numDOF));
-
     } else if ((strcmp(argv[0],"axialForce") == 0) || 
 	       (strcmp(argv[0],"basicForce") == 0) || 
+	       (strcmp(argv[0],"localForce") == 0) || 
 	       (strcmp(argv[0],"basicForces") == 0)) {
             output.tag("ResponseType", "N");
             theResponse =  new ElementResponse(this, 2, Vector(1));
@@ -1211,37 +1291,8 @@ Truss::setResponse(const char **argv, int argc, OPS_Stream &output)
 	    
     // a material quantity
     } else if (strcmp(argv[0],"material") == 0 || strcmp(argv[0],"-material") == 0) {
-        if (argc > 1) {
-            // we need at least one more argument otherwise
-            // there is no need to forward this call to the material
-            // by default assume the old call style for backward compatibility "material result"
-            int offset = 1;
-            bool is_valid = true;
-            // in case the user specifies the gauss point id... "material 1 result"
-            if (argc > 2) {
-                int sectionNum = atoi(argv[1]);
-                if (sectionNum == 1) {
-                    // this is the only supported gauss id
-                    offset = 2;
-                }
-                else if (sectionNum > 1) {
-                    // this is a number, but not within the valid range
-                    is_valid = false;
-                }
-                // if it is 0, then it is not a number, forward it as usual...
-            }
-            if (is_valid) {
-                output.tag("GaussPointOutput");
-                output.attr("number", 1);
-                output.attr("eta", 0.0);
-                theResponse = theMaterial->setResponse(&argv[offset], argc - offset, output);
-                output.endTag();
-            }
-        }
-    }
-    else if (strcmp(argv[0], "energy") == 0)
-    {
-        theResponse = new ElementResponse(this, 2000, 0.0);
+
+        theResponse =  theMaterial->setResponse(&argv[1], argc-1, output);
     }
 
     output.endTag();
@@ -1249,7 +1300,7 @@ Truss::setResponse(const char **argv, int argc, OPS_Stream &output)
 }
 
 int 
-Truss::getResponse(int responseID, Information &eleInfo)
+NLTruss::getResponse(int responseID, Information &eleInfo)
 {
   double strain, force;
     static Vector fVec(1);
@@ -1258,13 +1309,6 @@ Truss::getResponse(int responseID, Information &eleInfo)
     switch (responseID) {
     case 1:
         return eleInfo.setVector(this->getResistingForce());
-
-    case 11: {
-      Vector P(numDOF);
-      P(numDOF/2) = A*theMaterial->getStress();
-      P(0) = -P(numDOF/2);
-      return eleInfo.setVector(P);
-    }
 
     case 2:
       fVec(0) = A*theMaterial->getStress();
@@ -1286,9 +1330,6 @@ Truss::getResponse(int responseID, Information &eleInfo)
       kVec(0,0) = A*force/L;
       return eleInfo.setMatrix(kVec);
       
-    case 2000:
-        return eleInfo.setDouble(A * L * theMaterial->getEnergy());
-
     default:
       return 0;
     }
@@ -1296,17 +1337,17 @@ Truss::getResponse(int responseID, Information &eleInfo)
 
 // AddingSensitivity:BEGIN ///////////////////////////////////
 int
-Truss::setParameter(const char **argv, int argc, Parameter &param)
+NLTruss::setParameter(const char **argv, int argc, Parameter &param)
 {
   if (argc < 1)
     return -1;
   
-  // Cross sectional area of the truss
+  // Cross sectional area of the NLtruss
   if (strcmp(argv[0],"A") == 0) {
     param.setValue(A);
     return param.addObject(1, this);
   }
-  // Mass density of the truss
+  // Mass densitity of the NLtruss
   if (strcmp(argv[0],"rho") == 0) {
     param.setValue(rho);
     return param.addObject(2, this);
@@ -1327,7 +1368,7 @@ Truss::setParameter(const char **argv, int argc, Parameter &param)
 }
 
 int
-Truss::updateParameter (int parameterID, Information &info)
+NLTruss::updateParameter (int parameterID, Information &info)
 {
   switch (parameterID) {
   case 1:
@@ -1342,7 +1383,7 @@ Truss::updateParameter (int parameterID, Information &info)
 }
 
 int
-Truss::activateParameter(int passedParameterID)
+NLTruss::activateParameter(int passedParameterID)
 {
   parameterID = passedParameterID;
   
@@ -1351,7 +1392,7 @@ Truss::activateParameter(int passedParameterID)
 
 
 const Matrix &
-Truss::getKiSensitivity(int gradNumber)
+NLTruss::getKiSensitivity(int gradNumber)
 {
   Matrix &stiff = *theMatrix;
   stiff.Zero();
@@ -1399,7 +1440,7 @@ Truss::getKiSensitivity(int gradNumber)
 }
 
 const Matrix &
-Truss::getMassSensitivity(int gradNumber)
+NLTruss::getMassSensitivity(int gradNumber)
 {
   Matrix &mass = *theMatrix;
   mass.Zero();
@@ -1431,7 +1472,7 @@ Truss::getMassSensitivity(int gradNumber)
 }
 
 const Vector &
-Truss::getResistingForceSensitivity(int gradNumber)
+NLTruss::getResistingForceSensitivity(int gradNumber)
 {
 	theVector->Zero();
 
@@ -1562,7 +1603,7 @@ Truss::getResistingForceSensitivity(int gradNumber)
 }
 
 int
-Truss::commitSensitivity(int gradNumber, int numGrads)
+NLTruss::commitSensitivity(int gradNumber, int numGrads)
 {
 	// Initial declarations
 	int i; 

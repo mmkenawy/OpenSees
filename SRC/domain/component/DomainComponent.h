@@ -64,7 +64,7 @@ class DomainComponent: public TaggedObject, public MovableObject
   private:    
     Domain *theDomain; // a pointer to the enclosing Domain object
     friend class NLDispBeamColumn2d;
-    friend class Truss;
+    friend class NLTruss;
 };
 
 #endif

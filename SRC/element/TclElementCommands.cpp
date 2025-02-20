@@ -83,6 +83,7 @@ extern void printCommand(int argc, TCL_Char **argv);
 extern  void *OPS_ComponentElement2d(void);
 //extern  void *OPS_ComponentElementDamp2d(void);
 extern  void *OPS_TrussElement(void);
+extern  void *OPS_NLTrussElement(void);
 extern  void *OPS_TrussSectionElement(void);
 extern  void *OPS_CorotTrussElement(void);
 extern  void *OPS_CorotTrussSectionElement(void);
@@ -959,7 +960,16 @@ TclModelBuilderElementCommand(ClientData clientData, Tcl_Interp *interp,
     else {
       opserr << "tclelementcommand -- unable to create element of type : " << argv[1] << endln;
       return TCL_ERROR;
-    }																								
+    }
+  } else if ((strcmp(argv[1],"NLTruss") == 0)) { 	//////////////////////// mmc
+
+      void *theEle = OPS_NLTrussElement();
+      if (theEle != 0)
+        theElement = (Element *)theEle;
+      else {
+        opserr << "tclelementcommand -- unable to create element of type : " << argv[1] << endln;
+        return TCL_ERROR;
+      }
   } else if ((strcmp(argv[1],"CorotTruss2") == 0)) { 	//////////////////////// mmc
     
     void *theEle = OPS_CorotTruss2();

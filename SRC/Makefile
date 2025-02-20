@@ -457,6 +457,7 @@ ELE_LIBS   =  $(FE)/element/Element.o \
 	$(FE)/element/Information.o \
 	$(FE)/element/ElementalLoad.o \
 	$(FE)/element/truss/Truss.o \
+	$(FE)/element/truss/NLTruss.o \
 	$(FE)/element/truss/TrussSection.o \
 	$(FE)/element/truss/CorotTruss.o \
 	$(FE)/element/truss/CorotTrussSection.o \

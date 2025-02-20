@@ -1,6 +1,7 @@
 include ../../../Makefile.def
 
 OBJS       = Truss.o \
+	NLTruss.o \
 	TrussSection.o \
 	CorotTruss.o \
 	CorotTrussSection.o \

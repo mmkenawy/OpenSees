@@ -555,6 +555,7 @@
 #define ELE_TAG_beam3d01    	        10
 #define ELE_TAG_beam3d02    	        11
 #define ELE_TAG_Truss    	        12
+#define ELE_TAG_NLTruss    	        1200
 #define ELE_TAG_TrussSection            13
 #define ELE_TAG_CorotTruss    	        14
 #define ELE_TAG_CorotTrussSection    	15
